@@ -1,0 +1,72 @@
+<vertical child-control-height='false' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='https://monkeymanboy.github.io/BSML-Docs/ https://raw.githubusercontent.com/monkeymanboy/BSML-Docs/gh-pages/BSMLSchema.xsd'>
+  <tab-selector tab-tag='tabs'/>
+
+  <tab tags='tabs' tab-name='Connections'>
+    <modifier-container child-expand-width='true' horizontal-fit='PreferredSize' pad-top='2'>
+      <string-setting text='Twitch Channel' value='twitch-channel' apply-on-change='true' hover-hint='Your Twitch channel name (without #)'/>
+      <toggle-setting text='Enable Twitch' value='enable-twitch' apply-on-change='true'/>
+      <horizontal pref-height='4'/>
+      <string-setting text='YouTube Channel' value='youtube-channel' apply-on-change='true' hover-hint='Your @handle, channel id (UC...) or an 11-character video id'/>
+      <toggle-setting text='Enable YouTube' value='enable-youtube' apply-on-change='true'/>
+      <horizontal pref-height='4'/>
+      <string-setting text='Kick Channel' value='kick-channel' apply-on-change='true' hover-hint='Your Kick channel slug, profile URL, or numeric chatroom id'/>
+      <toggle-setting text='Enable Kick' value='enable-kick' apply-on-change='true'/>
+    </modifier-container>
+  </tab>
+
+  <tab tags='tabs' tab-name='Appearance'>
+    <horizontal horizontal-fit='PreferredSize' spacing='4' pad-top='2'>
+      <vertical child-control-height='false' spacing='0'>
+        <slider-setting text='Curve' pref-width='64' value='curve-amount' min='0' max='10' increment='0.5' apply-on-change='true' hover-hint='Window curve. 0 = flat, higher = stronger curve.'/>
+        <slider-setting text='Width' pref-width='64' value='panel-width' min='70' max='300' increment='5' apply-on-change='true' hover-hint='Chat window width.'/>
+        <slider-setting text='Height' pref-width='64' value='panel-height' min='30' max='200' increment='5' apply-on-change='true' hover-hint='Chat window height.'/>
+        <color-setting text='Color' pref-width='64' value='background-color' apply-on-change='true' hover-hint='Window backdrop color.'/>
+      </vertical>
+      <vertical child-control-height='false' spacing='0'>
+        <slider-setting text='Font' pref-width='64' value='font-size' min='2' max='6' increment='0.2' apply-on-change='true' hover-hint='Chat text size.'/>
+        <slider-setting text='Counter' pref-width='64' value='viewer-count-size' min='1.5' max='6' increment='0.1' apply-on-change='true' hover-hint='Size of the viewer-count numbers and platform icons at the top of the chat panel.'/>
+        <slider-setting text='Opacity' pref-width='64' value='background-opacity' min='0' max='1' increment='0.05' apply-on-change='true' hover-hint='Window backdrop transparency. 0 = invisible backdrop, text stays.'/>
+        <slider-setting text='Highlight' pref-width='64' value='highlight-opacity' min='0.1' max='1' increment='0.05' apply-on-change='true' hover-hint='Darkness of the backdrop behind each message (with Highlight Messages on).'/>
+      </vertical>
+    </horizontal>
+  </tab>
+
+  <tab tags='tabs' tab-name='Requests'>
+    <horizontal horizontal-fit='PreferredSize' pad-top='2'>
+      <vertical child-control-height='false' spacing='0'>
+        <toggle-setting text='Enable Requests' value='enable-song-requests' apply-on-change='true' hover-hint='Allow chat to add BeatSaver map requests.'/>
+        <toggle-setting text='Use !bsr' value='use-bsr-command' apply-on-change='true' hover-hint='Use !bsr for requests instead of !request. Warning: BeatSaberPlus also uses !bsr, so if you have BS+ song requests installed, both mods will respond to the same command.'/>
+        <toggle-setting text='Allow Duplicates' value='allow-duplicates' apply-on-change='true' hover-hint='Allow the same map key to appear more than once in the queue.'/>
+        <toggle-setting text='Persist Queue' value='persist-request-queue' apply-on-change='true' hover-hint='Restore queued requests after restarting the game.'/>
+        <slider-setting text='Cooldown' pref-width='64' value='request-cooldown' min='0' max='600' increment='5' integer-only='true' apply-on-change='true' hover-hint='Per-viewer cooldown in seconds. Mods and broadcaster are exempt.'/>
+      </vertical>
+    </horizontal>
+  </tab>
+
+  <tab tags='tabs' tab-name='Map Overlay'>
+    <modifier-container child-expand-width='true' horizontal-fit='PreferredSize' pad-top='1'>
+      <horizontal>
+        <text text='Toggle with the monitor button on the chat window.' font-size='2.6' font-align='Center'/>
+      </horizontal>
+      <toggle-setting text='Song Name' value='overlay-song-name' apply-on-change='true' hover-hint='Show the song title on the overlay.'/>
+      <toggle-setting text='Song Author' value='overlay-song-author' apply-on-change='true' hover-hint='Show the song artist on the overlay.'/>
+      <toggle-setting text='Song Cover' value='overlay-cover' apply-on-change='true' hover-hint='Show the cover art on the overlay.'/>
+      <toggle-setting text='Mapper &amp; Key' value='overlay-mapper' apply-on-change='true' hover-hint='Show the mapper name and BeatSaver key on the overlay.'/>
+      <toggle-setting text='Clock' value='overlay-duration' apply-on-change='true' hover-hint='Show the clock on the overlay.'/>
+      <toggle-setting text='Difficulty' value='overlay-difficulty' apply-on-change='true' hover-hint='Show the selected map difficulty on the overlay.'/>
+      <dropdown-list-setting text='Position' value='overlay-position' options='overlay-position-options' apply-on-change='true' hover-hint='Where the overlay sits on the flatscreen view.'/>
+    </modifier-container>
+  </tab>
+
+  <tab tags='tabs' tab-name='General'>
+    <modifier-container child-expand-width='true' horizontal-fit='PreferredSize' pad-top='2'>
+      <toggle-setting text='Show Chat Window' value='show-window' apply-on-change='true' hover-hint='Master switch for the floating chat panel'/>
+      <toggle-setting text='Highlight Messages' value='highlight-messages' apply-on-change='true' hover-hint='Dark backdrop behind each message for readability'/>
+      <toggle-setting text='Platform Icons' value='platform-icons' apply-on-change='true' hover-hint='Twitch/YouTube/Kick and broadcaster/mod badge icons in front of messages. Off = just name and message.'/>
+      <toggle-setting text='Emoji Images' value='emoji-images' apply-on-change='true' hover-hint='Show Unicode emoji and stream emotes as inline images. Off = plain text names/characters.'/>
+      <toggle-setting text='Show Viewer Counts' value='show-viewer-counts' apply-on-change='true' hover-hint='Live viewer numbers per platform at the top of the panel'/>
+      <toggle-setting text='Show System Messages' value='show-system' apply-on-change='true' hover-hint='Connection status lines in the chat feed'/>
+      <button text='Recenter Window' on-click='recenter-window' pref-width='46' pref-height='8' hover-hint='Move the chat panel back to its centered default position over the foot marker.'/>
+    </modifier-container>
+  </tab>
+</vertical>
