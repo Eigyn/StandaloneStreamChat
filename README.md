@@ -17,8 +17,8 @@ A free, simple Beat Saber PC mod that shows your **Twitch**, **YouTube**, and **
 2. Run the game once, then add your platform connections inside Mods -> SimpleBSStreamChat:
    - `"TwitchChannel"`: your Twitch channel name (e.g. `"myname"`)
    - `"YouTubeChannel"`: your YouTube handle (e.g. `"@myname"`), channel id (`"UC…"`), or an 11-character video id
-   - `"KickChannel"`: your Kick channel slug, profile URL, or numeric chatroom id
-   **You can also edit `UserData\SimpleBSStreamChat.json` to add your connections as well.**
+   - `"KickChannel"`: your Kick channel slug, profile URL, or numeric chatroom id. 
+   - **You can also edit `UserData\SimpleBSStreamChat.json` to add your connections as well.**
 4. Restart the game. The chat panel appears above the menu; you can grab anywhere on the window to move it. Most options can also be changed in Mods -> SimpleBSStreamChat.
 
 ## Song Requests
