@@ -1,69 +1,68 @@
+# Track only the source and files needed to build, test, and license the mod.
+# Add new required repository files to the allowlist below.
+*
+
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/LICENSE
+!/THIRD-PARTY-NOTICES
+
+# C++ implementation and headers.
+!/src/
+!/src/**/
+!/src/**/*.c
+!/src/**/*.cpp
+!/include/
+!/include/**/
+!/include/**/*.h
+!/include/**/*.hpp
+!/include/**/*.inl
+!/include/**/*.tpp
+
+# PNG source assets embedded by cmake/EmbedAssets.cmake.
+!/assets/
+!/assets/*.png
+
+# Full upstream licenses and provenance records, including future .txt files.
+!/licenses/
+!/licenses/**
+
+# Reproducible build definitions, dependency lockfiles, and release tooling.
+!/CMakeLists.txt
+!/qpm.json
+!/qpm.shared.json
+!/mod.template.json
+!/cmake/
+!/cmake/*.cmake
+!/scripts/
+!/scripts/*.ps1
+!/bs-1.40.8/
+!/bs-1.40.8/.gitignore
+!/bs-1.40.8/CMakeLists.txt
+!/bs-1.40.8/qpm.json
+!/bs-1.40.8/qpm.shared.json
+!/bs-1.40.8/mod.template.json
+!/bs-1.40.8/build.ps1
+!/bs-1.40.8/loosen-deps.ps1
+
+# Native regression-test source and runner.
+!/tests/
+!/tests/*.cpp
+!/tests/*.hpp
+!/tests/*.h
+!/tests/*.ps1
+
+# Keep generated output ignored even if it appears in an allowed directory.
+[Bb]uild/
+[Ee]xtern/
+releases/
 .cache/
-
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
 *.o
 *.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
 *.so
-*.dylib
 *.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
 *.a
 *.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# VSCode config stuff
-!.vscode/c_cpp_properties.json
-!.vscode/tasks.json
-!.vscode/settings.json
-
-# Jetbrains IDEs
-.idea/
-
-# NDK stuff
-out/
-[Ll]ib/
-[Ll]ibs/
-[Oo]bj/
-[Oo]bjs/
-ndkpath.txt
-*.zip
-*.txt
-*.log
-Android.mk.backup
-
-# QPM stuff
-[Ee]xtern/
 *.qmod
-mod.json
-qpm_defines.cmake
-![Cc][Mm]ake[Ll]ists.txt
-
-# CMake stuff
-[Bb]uild/
-cmake-build-*/
-extern.cmake
-
-# QMOD Schema
-mod.json.schema
+*.zip

@@ -9,7 +9,7 @@
 # install, so the manifest accepts any newer release instead: "=x.y.z"
 # becomes "^x.y.z".
 Param(
-    [string]$qmod = "SimpleBSStreamChat-1.40.8.qmod"
+    [string]$qmod = "StandaloneStreamChat-1.40.8.qmod"
 )
 Set-Location $PSScriptRoot
 

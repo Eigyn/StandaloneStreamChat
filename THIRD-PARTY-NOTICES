@@ -1,0 +1,95 @@
+# Third-party notices
+
+StandaloneStreamChat's own code is licensed under MIT-0 (MIT No Attribution)
+in LICENSE. This license applies to code owned by Eigyn; third-party code
+listed below is excluded from that relicensing.
+Third-party code retains its upstream terms. Individual license and provenance
+files are in licenses/ in the source tree. The packaging script includes these
+files at the root of each QMOD and beside the QMOD in each release folder/ZIP.
+
+## Adapted source code
+
+- QuestChatPlexSDK-BS v6.4.5 by HardCPP:
+  All Songs category selection and exact-level-ID filtering in
+  src/Songs/LevelNavigator.cpp are adapted from
+  src/CP_SDK_BS/Game/LevelSelection.cpp, particularly upstream lines
+  124-147 and 200-217. The SDK's non-overwriting destination logic was also
+  consulted for src/Requests/SongRequestManager.cpp.
+  Source: https://github.com/hardcpp/QuestChatPlexSDK-BS/tree/b7455f136fb54181ad171dae2144b379ab26ea04
+  License: MIT; Copyright (c) 2023 HardCPP.
+  Full text is below and in LICENSE.QuestChatPlexSDK-BS.
+
+- Quest-BSML by RedBrumbler and contributors:
+  The panel grab/movement math in src/UI/ChatPanel.cpp follows
+  BSML's FloatingScreenHandle implementation.
+  Source: https://github.com/bsq-ports/Quest-BSML
+  License status: UNVERIFIED. No license file or permission statement was
+  found in the inspected v0.4.55/v0.6.5 source trees or the relevant source
+  header. See NOTICE.Quest-BSML for details.
+
+- MetaCoreBS by Metalit and contributors:
+  The Solo opening sequence in src/Songs/LevelNavigator.cpp follows
+  MetaCore::Songs::SelectLevel in src/songs.cpp.
+  Source: https://github.com/Metalit/MetaCoreBS
+  License status: UNVERIFIED. No license file or permission statement was
+  found in the inspected repository or relevant source header.
+  See NOTICE.MetaCoreBS for details.
+
+An attribution notice does not supply missing upstream permission. The two
+unverified entries above are recorded as provenance, not labeled MIT or
+represented as resolved licensing.
+
+## Code compiled into the mod
+
+- libcurl 8.5.0: curl license; see LICENSE.libcurl.
+- OpenSSL 1.1.1w, via libcurl: OpenSSL and original SSLeay licenses;
+  see LICENSE.OpenSSL.
+- RapidJSON 1.1.0 headers: MIT; see LICENSE.RapidJSON, which preserves
+  upstream's complete license inventory. Its JSON_checker and test tools
+  are not compiled into this mod.
+- fmt 11.0.2 headers: MIT with upstream's optional compiled-object exception;
+  see LICENSE.fmt.
+- utfcpp headers, via paperlog: Boost Software License 1.0;
+  see LICENSE.utfcpp.
+- And64InlineHook, compiled into the 1.40.8 build only: MIT;
+  Copyright (c) 2018 Rprop (r_prop@outlook.com).
+  See LICENSE.And64InlineHook, extracted from the compiled source's notice.
+
+This product includes software developed by the OpenSSL Project for use in
+the OpenSSL Toolkit (http://www.openssl.org/).
+This product includes cryptographic software written by Eric Young
+(eay@cryptsoft.com).
+
+Separately installed mod dependencies retain their own licenses. Listing
+them here does not relicense them or imply that their entire source is
+included in StandaloneStreamChat.
+
+## Behavior references
+
+BeatSaberPlus and EnhancedStreamChat informed the feature comparisons.
+They are credited in README.md. The confirmed Song Requests code adaptation
+is from QuestChatPlexSDK-BS as identified above.
+
+## QuestChatPlexSDK-BS license
+
+MIT License
+
+Copyright (c) 2023 HardCPP
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

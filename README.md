@@ -1,7 +1,12 @@
-# SimpleBSStreamChat
+# StandaloneStreamChat
 
 Free Twitch, YouTube and Kick stream chat for Beat Saber on Quest, packaged as
 a `.qmod`. No accounts, no relay services.
+
+Formerly SimpleBSStreamChat. The displayed name and release filenames use
+StandaloneStreamChat. The package ID, native library, internal namespaces,
+and saved-file names retain SimpleBSStreamChat so existing installations
+upgrade in place and keep their settings and request queue.
 
 Builds for **Beat Saber 1.45.3_30054** (Quest 2 / 3S / 3) and for
 **1.40.8_7379** (see [Beat Saber 1.40.8](#beat-saber-1408)).
@@ -88,11 +93,20 @@ qpm s qmod
 `qpm s build` builds only the `.so`. Put your NDK path in `ndkpath.txt`
 (gitignored) if `ANDROID_NDK_HOME` isn't set.
 
+`qpm s qmod` also runs `scripts/package-release.ps1`. It embeds LICENSE,
+THIRD-PARTY-NOTICES and every file in `licenses/` in the QMOD, then creates
+`releases/StandaloneStreamChat-<version>-bs-<game-version>/` and a matching ZIP.
+Each release folder contains the QMOD and the same individual license and
+provenance files. The 1.40.8 build uses the same packaging step after its
+dependency ranges are relaxed. To repackage an existing QMOD without
+compiling, run `pwsh ./scripts/package-release.ps1 -GameVersion 1.45.3`
+(or `1.40.8`).
+
 ### Beat Saber 1.40.8
 `bs-1.40.8/` builds the same sources against the 1.40.8 libraries
 (bs-cordl 4008, beatsaber-hook 6.4.2, and the exact 1.40.8 core mods: BSML
 0.4.55, SongCore 1.1.24, custom-types 0.18.3, paper2 4.6.4) into
-`bs-1.40.8/SimpleBSStreamChat-1.40.8.qmod`:
+`bs-1.40.8/StandaloneStreamChat-1.40.8.qmod`:
 ```
 cd bs-1.40.8
 qpm restore
@@ -146,9 +160,16 @@ Built on [BSML](https://github.com/bsq-ports/Quest-BSML),
 [UnicodeQuest](https://github.com/Metalit/UnicodeQuest).
 
 Adapted from other mods:
+- All Songs category selection and exact-song filtering (`Songs/LevelNavigator`)
+  adapt [QuestChatPlexSDK-BS v6.4.5](https://github.com/hardcpp/QuestChatPlexSDK-BS/tree/v6.4.5)
+  by HardCPP (MIT).
 - Dragging the panel (`UI/ChatPanel`) follows Quest-BSML's `FloatingScreenHandle`.
 - Opening Solo on a song (`Songs/LevelNavigator`) follows the `SelectLevel`
   function in [MetaCoreBS](https://github.com/Metalit/MetaCoreBS).
+
+Quest-BSML's and MetaCoreBS's licenses could not be verified from the inspected
+upstream source. They are attributed in THIRD-PARTY-NOTICES and the individual
+NOTICE files without assigning them an assumed license.
 
 Used as references only, with no code copied:
 - [CatCore](https://github.com/ErisApps/CatCore) for Twitch IRC protocol details.
@@ -165,4 +186,8 @@ Compiled into the mod:
   1.40.8 build only.
 
 ## License
-MIT, see [LICENSE](LICENSE). The projects above keep their own licenses.
+Eigyn's own code is licensed under **MIT-0 (MIT No Attribution)**, see
+[LICENSE](LICENSE). Third-party code retains its upstream terms and is
+excluded from that relicensing. Third-party terms and unresolved provenance
+entries are documented in [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES) and [licenses/](licenses/).
+The release packaging includes those files beside the QMOD and inside it.

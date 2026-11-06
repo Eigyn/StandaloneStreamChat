@@ -41,7 +41,7 @@ MOD_EXPORT_FUNC void late_load() noexcept {
 
     custom_types::Register::AutoRegister();
     BSML::Init();
-    BSML::Register::RegisterMainMenu("Stream Chat", "SimpleBSStreamChat", "Twitch + YouTube + Kick stream chat settings",
+    BSML::Register::RegisterMainMenu("StandaloneStreamChat", "StandaloneStreamChat", "Twitch + YouTube + Kick stream chat settings",
         &SimpleBSStreamChat::UI::SettingsDidActivate);
 
     // A named logger: beatsaber-hook 6 (1.40.8) takes it by non-const reference.

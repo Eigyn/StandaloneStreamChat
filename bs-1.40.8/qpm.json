@@ -4,9 +4,9 @@
   "sharedDir": "shared",
   "dependenciesDir": "extern",
   "info": {
-    "name": "SimpleBSStreamChat",
+    "name": "StandaloneStreamChat",
     "id": "SimpleBSStreamChat",
-    "version": "0.9.3",
+    "version": "0.9.4",
     "url": "https://github.com/Eigyn/SimpleBSStreamChat",
     "additionalData": {
       "overrideSoName": "libSimpleBSStreamChat.so",
@@ -15,24 +15,80 @@
   },
   "workspace": {
     "scripts": {
-      "build": ["pwsh ./build.ps1"],
-      "clean": ["pwsh ./build.ps1 -clean"],
-      "qmod": ["pwsh ./build.ps1", "qpm qmod zip", "pwsh ./loosen-deps.ps1"]
+      "build": [
+        "pwsh ./build.ps1"
+      ],
+      "clean": [
+        "pwsh ./build.ps1 -clean"
+      ],
+      "qmod": [
+        "pwsh ./build.ps1",
+        "qpm qmod manifest",
+        "qpm qmod zip",
+        "pwsh ./loosen-deps.ps1",
+        "pwsh ../scripts/package-release.ps1 -GameVersion 1.40.8"
+      ]
     },
     "ndk": "^27.2.12479018",
-    "qmodIncludeDirs": ["./build", "./extern/libs"],
+    "qmodIncludeDirs": [
+      "./build",
+      "./extern/libs"
+    ],
     "qmodIncludeFiles": [],
-    "qmodOutput": "SimpleBSStreamChat-1.40.8.qmod"
+    "qmodOutput": "StandaloneStreamChat-1.40.8.qmod"
   },
   "dependencies": [
-    { "id": "libil2cpp", "versionRange": "^0.4.0", "additionalData": {} },
-    { "id": "beatsaber-hook", "versionRange": "^6.4.2", "additionalData": {} },
-    { "id": "bs-cordl", "versionRange": "^4008.0.0", "additionalData": {} },
-    { "id": "custom-types", "versionRange": "=0.18.3", "additionalData": {} },
-    { "id": "bsml", "versionRange": "=0.4.55", "additionalData": {} },
-    { "id": "scotland2", "versionRange": "^0.1.6", "additionalData": { "includeQmod": false, "private": true } },
-    { "id": "paper2_scotland2", "versionRange": "=4.6.4", "additionalData": { "private": true } },
-    { "id": "songcore", "versionRange": "=1.1.24", "additionalData": {} },
-    { "id": "libcurl", "versionRange": "=8.5.0", "additionalData": { "private": true } }
+    {
+      "id": "libil2cpp",
+      "versionRange": "^0.4.0",
+      "additionalData": {}
+    },
+    {
+      "id": "beatsaber-hook",
+      "versionRange": "^6.4.2",
+      "additionalData": {}
+    },
+    {
+      "id": "bs-cordl",
+      "versionRange": "^4008.0.0",
+      "additionalData": {}
+    },
+    {
+      "id": "custom-types",
+      "versionRange": "=0.18.3",
+      "additionalData": {}
+    },
+    {
+      "id": "bsml",
+      "versionRange": "=0.4.55",
+      "additionalData": {}
+    },
+    {
+      "id": "scotland2",
+      "versionRange": "^0.1.6",
+      "additionalData": {
+        "includeQmod": false,
+        "private": true
+      }
+    },
+    {
+      "id": "paper2_scotland2",
+      "versionRange": "=4.6.4",
+      "additionalData": {
+        "private": true
+      }
+    },
+    {
+      "id": "songcore",
+      "versionRange": "=1.1.24",
+      "additionalData": {}
+    },
+    {
+      "id": "libcurl",
+      "versionRange": "=8.5.0",
+      "additionalData": {
+        "private": true
+      }
+    }
   ]
 }

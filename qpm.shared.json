@@ -5,9 +5,9 @@
     "sharedDir": "shared",
     "dependenciesDir": "extern",
     "info": {
-      "name": "SimpleBSStreamChat",
+      "name": "StandaloneStreamChat",
       "id": "SimpleBSStreamChat",
-      "version": "0.9.3",
+      "version": "0.9.4",
       "url": "https://github.com/Eigyn/SimpleBSStreamChat",
       "additionalData": {
         "overrideSoName": "libSimpleBSStreamChat.so",
@@ -25,7 +25,8 @@
         "qmod": [
           "pwsh ./scripts/build.ps1",
           "qpm qmod manifest",
-          "qpm qmod zip"
+          "qpm qmod zip",
+          "pwsh ./scripts/package-release.ps1 -GameVersion 1.45.3"
         ]
       },
       "ndk": "^29.0.14206865",
@@ -34,7 +35,7 @@
         "./extern/libs"
       ],
       "qmodIncludeFiles": [],
-      "qmodOutput": "SimpleBSStreamChat"
+      "qmodOutput": "StandaloneStreamChat"
     },
     "dependencies": [
       {

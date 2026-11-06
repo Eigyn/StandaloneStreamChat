@@ -1,0 +1,20 @@
+MetaCoreBS provenance notice
+
+Project: MetaCoreBS
+Authors: Metalit and contributors
+Repository: https://github.com/Metalit/MetaCoreBS
+Source examined: https://github.com/Metalit/MetaCoreBS/blob/main/src/songs.cpp
+Source blob: e778aeaa1fb286b4035590cc011f61f9ce3ff8e5
+
+StandaloneStreamChat's src/Songs/LevelNavigator.cpp follows the Solo opening
+sequence from MetaCore::Songs::SelectLevel.
+
+LICENSE STATUS: UNVERIFIED
+
+As inspected on November 6, 2026, the repository contains no license file,
+and the relevant source header, README, and qpm.json contain no permission
+statement. The GitHub repository metadata reports no recognized license.
+The user has no separate license or permission record.
+
+This is an attribution/provenance notice, not a license or permission grant.
+No license text has been invented for this entry.

@@ -1,0 +1,72 @@
+{
+  "verifiedOn": "2026-11-06",
+  "entries": [
+    {
+      "file": "LICENSE.QuestChatPlexSDK-BS",
+      "status": "verified",
+      "license": "MIT",
+      "source": "https://github.com/hardcpp/QuestChatPlexSDK-BS/blob/b7455f136fb54181ad171dae2144b379ab26ea04/LICENSE",
+      "upstreamBlob": "8309677f798d6519de5f8323cd6b7657544f105d"
+    },
+    {
+      "file": "LICENSE.fmt",
+      "status": "verified",
+      "license": "MIT with compiled-object exception",
+      "source": "https://github.com/fmtlib/fmt/blob/11.0.2/LICENSE",
+      "upstreamBlob": "1cd1ef92696b65b2ecb0e560e622f0a0e869dcf3"
+    },
+    {
+      "file": "LICENSE.RapidJSON",
+      "status": "verified",
+      "license": "MIT; additional upstream component notices retained",
+      "source": "https://github.com/Tencent/rapidjson/blob/v1.1.0/license.txt",
+      "upstreamBlob": "7ccc161c84b243687498a0dae5043c1da6173ac4"
+    },
+    {
+      "file": "LICENSE.libcurl",
+      "status": "verified",
+      "license": "curl",
+      "source": "https://github.com/curl/curl/blob/curl-8_5_0/COPYING",
+      "upstreamBlob": "d1eab3eb93284009b03c879ebb1c0830eecf2536"
+    },
+    {
+      "file": "LICENSE.OpenSSL",
+      "status": "verified",
+      "license": "OpenSSL and original SSLeay",
+      "source": "https://github.com/openssl/openssl/blob/OpenSSL_1_1_1w/LICENSE",
+      "upstreamBlob": "9601ab43575f9719ca6d2731580ec31ca5dfb0e7"
+    },
+    {
+      "file": "LICENSE.And64InlineHook",
+      "status": "verified",
+      "license": "MIT",
+      "source": "https://github.com/Rprop/And64InlineHook",
+      "vendoredSource": "bs-1.40.8/extern/includes/beatsaber-hook/shared/inline-hook/And64InlineHook.cpp"
+    },
+    {
+      "file": "LICENSE.utfcpp",
+      "status": "verified",
+      "license": "BSL-1.0",
+      "source": "https://github.com/nemtrif/utfcpp",
+      "vendoredSource": "extern/includes/paper2_scotland2/shared/utfcpp/LICENSE and source/utf8.h"
+    },
+    {
+      "file": "NOTICE.Quest-BSML",
+      "status": "unverified",
+      "license": null,
+      "source": "https://github.com/bsq-ports/Quest-BSML",
+      "inspectedRefs": [
+        "v0.4.55",
+        "v0.6.5"
+      ],
+      "sourceBlob": "cb9593b104f3c0ec0dfbbd7cd2e7670513867fba"
+    },
+    {
+      "file": "NOTICE.MetaCoreBS",
+      "status": "unverified",
+      "license": null,
+      "source": "https://github.com/Metalit/MetaCoreBS",
+      "sourceBlob": "e778aeaa1fb286b4035590cc011f61f9ce3ff8e5"
+    }
+  ]
+}

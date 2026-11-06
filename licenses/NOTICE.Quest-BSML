@@ -1,0 +1,22 @@
+Quest-BSML provenance notice
+
+Project: Quest-BSML
+Authors: RedBrumbler and contributors
+Repository: https://github.com/bsq-ports/Quest-BSML
+Source examined:
+https://github.com/bsq-ports/Quest-BSML/blob/v0.4.55/src/BSML/FloatingScreen/FloatingScreenHandle.cpp
+Source blob: cb9593b104f3c0ec0dfbbd7cd2e7670513867fba
+
+StandaloneStreamChat's src/UI/ChatPanel.cpp adapts the panel grab/movement math
+from the FloatingScreenHandle implementation.
+
+LICENSE STATUS: UNVERIFIED
+
+As inspected on November 6, 2026, the Quest-BSML v0.4.55 and v0.6.5 source
+trees contain no license file, and the relevant source header and README
+contain no permission statement. The GitHub repository metadata reports no
+recognized license. The user has no separate license or permission record.
+
+This is an attribution/provenance notice, not a license or permission grant.
+The PC BeatSaberMarkupLanguage project's license is not asserted to cover
+new code in the Quest port. No license text has been invented for this entry.

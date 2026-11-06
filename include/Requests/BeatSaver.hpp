@@ -30,6 +30,6 @@ namespace SimpleBSStreamChat::Requests {
     /// Blocking; never throws.
     MapLookup LookUpMap(Net::HttpClient& http, std::string const& key);
 
-    /// "User-Agent: SimpleBSStreamChat/<version>", which BeatSaver asks API clients to send.
+    /// "User-Agent: StandaloneStreamChat/<version>", which BeatSaver asks API clients to send.
     std::string UserAgentHeader();
 }

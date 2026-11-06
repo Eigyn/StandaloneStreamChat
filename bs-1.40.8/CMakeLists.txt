@@ -5,6 +5,10 @@
 # include some defines automatically made by qpm
 include(qpm_defines.cmake)
 
+# QPM derives MOD_ID from the display name. Preserve the installed identity
+# and saved-file names when rebranding to StandaloneStreamChat.
+set(MOD_ID "SimpleBSStreamChat")
+
 cmake_minimum_required(VERSION 3.22)
 project(${COMPILE_ID})
 

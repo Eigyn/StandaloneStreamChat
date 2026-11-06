@@ -32,7 +32,7 @@ namespace SimpleBSStreamChat::Requests {
         }
     }
 
-    std::string UserAgentHeader() { return "User-Agent: SimpleBSStreamChat/" VERSION; }
+    std::string UserAgentHeader() { return "User-Agent: StandaloneStreamChat/" VERSION; }
 
     MapLookup LookUpMap(Net::HttpClient& http, std::string const& key) {
         MapLookup result;
