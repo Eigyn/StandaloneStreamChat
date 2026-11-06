@@ -61,7 +61,7 @@ namespace {
 
     // Only the newest messages can fit on the panel; cap the rows kept.
     constexpr size_t MaxRenderedMessages = 40;
-    constexpr float RowSpacing = 0.6f;  // the PC's ChatRowSpacing
+    constexpr float RowSpacing = 0.6f;
 
     using UI::Escape;
 
@@ -136,7 +136,7 @@ namespace {
         auto& atlas = UI::EmoteAtlas::Instance();
         std::string line;
         if (config.showPlatformIcons) {
-            // The PC's [T]/[Y]/[K] and [B]/[M] text tags stand in for any icon that failed to load.
+            // [T]/[Y]/[K] and [B]/[M] text tags stand in for any icon that failed to load.
             auto platform = atlas.IconTag(IconName(m.platform));
             line += platform.empty() ? std::string(UI::PlatformTag(m.platform)) : platform + " ";
             if (!m.badges.empty()) {
@@ -242,12 +242,12 @@ namespace {
         SaveConfig();
     }
 
-    // Side button column, in panel units (the PC corner buttons' size and spacing).
+    // Side button column, in panel units.
     constexpr float SideButtonSize = 7.0f;
     constexpr float SideButtonGap = 1.2f;
     constexpr float SideButtonTop = -2.4f;
 
-    // Viewer strip in a band across the top; the feed starts below it (PC values).
+    // Viewer strip in a band across the top; the feed starts below it.
     constexpr float ViewerStripTopInset = 2.3f;
     constexpr float ViewerStripHeight = 8.0f;
     constexpr float ViewerStripRightInset = 5.0f;
@@ -255,9 +255,7 @@ namespace {
     constexpr float ContentInset = 2.0f;  // feed margin when there's no strip
     constexpr ChatPlatform ViewerPlatforms[] = {ChatPlatform::Twitch, ChatPlatform::YouTube, ChatPlatform::Kick};
 
-    // "Requests (N)" sits at the left of the top band, clear of the counts
-    // (the PC's status label; its left inset there made room for the
-    // in-panel buttons, which are outside the panel here).
+    // "Requests (N)" sits at the left of the top band, clear of the counts.
     constexpr float RequestsLabelLeftInset = 3.0f;
     constexpr float RequestsLabelFontSize = 3.6f;
     UnityEngine::Color const RequestsModeTint(1.0f, 0.82f, 0.29f, 1.0f);
@@ -303,7 +301,7 @@ namespace SimpleBSStreamChat {
 
         // BSML's backdrop is the only ImageView so far. Its stock material
         // mostly ignores vertex color, so swap in NoGlow to make the Color
-        // setting show (same as the PC build). It is also the grab surface:
+        // setting show. It is also the grab surface:
         // ApplyLockState makes it catch the pointer only while unlocked.
         auto background = screenGo->GetComponentInChildren<HMUI::ImageView*>(true);
         if (background) {
@@ -342,10 +340,10 @@ namespace SimpleBSStreamChat {
         stripLayout->set_childControlHeight(true);
         stripLayout->set_childForceExpandWidth(false);
         stripLayout->set_childForceExpandHeight(false);
-        stripLayout->set_spacing(3.0f);  // the PC's 1 spacing plus its 2-unit gap between platforms
+        stripLayout->set_spacing(3.0f);  // the gap between platforms
 
         // The feed: rows stacked upward from the bottom edge, growing past the
-        // top of the mask as messages arrive (as on the PC).
+        // top of the mask as messages arrive.
         auto rowsGo = UnityEngine::GameObject::New_ctor("Rows");
         auto rows = rowsGo->AddComponent<UnityEngine::RectTransform*>();
         rows->SetParent(maskRect, false);
@@ -438,7 +436,7 @@ namespace SimpleBSStreamChat {
         return icon;
     }
 
-    // Same look as the PC: gold open padlock = movable, dim closed padlock =
+    // Gold open padlock = movable, dim closed padlock =
     // pinned; the move-mode arrows dim while locked.
     void ChatPanel::ApplyLockState() {
         auto const& config = GetConfig();
@@ -758,7 +756,7 @@ namespace SimpleBSStreamChat {
             _unreadRequests = true;
             UpdateRequestsButton();
         }
-        // Back to the feed once an accepted map opens, as on the PC.
+        // Back to the feed once an accepted map opens.
         if (requests.TakeOpened() && _requestsMode)
             ToggleRequestsMode();
         if (_requestsMode) {

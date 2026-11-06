@@ -25,8 +25,8 @@ namespace SimpleBSStreamChat {
         background->set_material(BSML::Helpers::GetUINoGlowMat());
         background->set_raycastTarget(false);  // presses go through to the panel's grab surface
 
-        // The text fills the row (less a unit of padding each side, as on the
-        // PC) and the row takes the text's wrapped height.
+        // The text fills the row (less a unit of padding each side) and the row
+        // takes the text's wrapped height.
         auto layout = go->AddComponent<UnityEngine::UI::HorizontalLayoutGroup*>();
         layout->set_padding(UnityEngine::RectOffset::New_ctor(1, 1, 0, 0));
         layout->set_childControlWidth(true);

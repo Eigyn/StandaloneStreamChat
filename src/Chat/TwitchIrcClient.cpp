@@ -167,7 +167,7 @@ namespace SimpleBSStreamChat::Chat {
     }
 
     // Twitch's public web GQL endpoint with the website's own client id (no
-    // user login); the PC build scrapes a fresh one if this is ever rejected.
+    // user login).
     void TwitchIrcClient::UpdateViewers() {
         constexpr char const* ClientIdHeader = "Client-Id: kimne78kx3ncx6brgo4mv6wki5h1ko";
         auto body = std::string(R"({"query":"query($login: String!) { user(login: $login) { stream { viewersCount } } }","variables":{"login":)") +

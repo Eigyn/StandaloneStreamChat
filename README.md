@@ -1,13 +1,16 @@
-# SimpleBSStreamChat (Quest)
+# SimpleBSStreamChat
 
-C++ port of SimpleBSStreamChat for Beat Saber on Quest, packaged as a `.qmod`.
-Targets **Beat Saber 1.45.3_30054** (Quest 2 / 3S / 3).
+Free Twitch, YouTube and Kick stream chat for Beat Saber on Quest, packaged as
+a `.qmod`. No accounts, no relay services.
 
-Ported so far: Twitch, YouTube and Kick chat (text, badges and inline emotes) on
-a floating panel in the menu, and the PC settings screen's Connections,
-Appearance (curve, size, backdrop color and opacity, font) and General tabs
-(`include/UI/SettingsBsml.hpp`, the PC `UI/Settings.bsml` minus unported parts).
-The PC panel's lock and move-mode buttons sit in a column outside the panel's
+Builds for **Beat Saber 1.45.3_30054** (Quest 2 / 3S / 3) and for
+**1.40.8_7379** (see [Beat Saber 1.40.8](#beat-saber-1408)).
+
+## Features
+Twitch, YouTube and Kick chat (text, badges and inline emotes) on a floating
+panel in the menu, with Connections, Appearance, Requests and General settings
+tabs (`include/UI/SettingsBsml.hpp`).
+The lock, move-mode and requests buttons sit in a column outside the panel's
 left edge; their icons (`assets/`) are compiled in as byte arrays that
 `cmake/EmbedAssets.cmake` generates (not `#embed`, which the 1.40.8 build's
 NDK 27 compiler lacks).
@@ -22,7 +25,7 @@ entries referenced by active rows are protected from eviction; when the
 working set cannot fit, the affected emotes remain readable as text.
 Twitch, YouTube and Kick emotes come from the messages;
 BTTV/FFZ/7TV emotes (`Chat/ThirdPartyEmotes`, global plus the Twitch channel's)
-are matched by word, as on the PC. Channel lookup no longer depends on FFZ:
+are matched by word. Channel lookup no longer depends on FFZ:
 the Twitch session or public web resource response supplies the channel ID.
 Provider failures retry with backoff, preserving successful data, and the
 resource cache periodically refreshes. Global and channel Twitch badge
@@ -36,7 +39,7 @@ Kick deletion/ban/clear events use the same ordered history update path.
 Mentions and provider-highlighted messages have distinct background colors;
 cheer amounts and full badge metadata are retained.
 
-**Animated Emotes** in General is optional and **off by default** on Quest.
+**Animated Emotes** in General is optional and **off by default**.
 It uses GIF resources where available and retains at most four animations
 and 2 MiB of frame pixels in total, with up to 512 KiB and 128 sampled frames
 per animation. Frame uploads are limited to ten animation updates per second.
@@ -50,7 +53,7 @@ preventing decoded images from piling up while Requests or a hidden panel
 pauses consumption.
 
 Song requests: viewers type `!bsr <key>` (or paste a BeatSaver link after
-`!bsr`); the PC's `!request` is not supported. `Requests/SongRequestManager`
+`!bsr`); `!request` is not supported. `Requests/SongRequestManager`
 keeps the queue (looked up on BeatSaver by a worker thread, saved to
 `Configs/SimpleBSStreamChat.Requests.json`), and the third side button swaps
 the feed for the request list (`UI/RequestList`, `UI/RequestRow`). Accept is
@@ -66,13 +69,10 @@ filter is released afterward so later searches use the whole library.
 Selection/loading errors retain the installed map with a Select retry, while
 download failures offer a download retry. Leaving Solo during installation
 parks the installed request for another Select press instead of keeping it
-busy indefinitely. The same workflow is used by both Quest builds.
+busy indefinitely. The same workflow is used by both builds.
 
-The Appearance tab adds a Quest-only Corners slider: the panel draws its own
-sliced rounded backdrop (`Icons::RoundedPanel`), starting at the rounding
-BSML's backdrop had.
-
-The PC map overlay is intentionally not part of the Quest version.
+The Appearance tab has a Corners slider: the panel draws its own sliced rounded
+backdrop (`Icons::RoundedPanel`), starting at the rounding BSML's backdrop had.
 
 ## Requirements
 - PowerShell 7 (`pwsh`), CMake, Ninja
@@ -102,7 +102,9 @@ It needs NDK **27** (`qpm ndk download 27.2.12479018`, path in
 `bs-1.40.8/ndkpath.txt`): beatsaber-hook 6's headers don't compile with NDK 29's
 libc++. beatsaber-hook 6 has no flamingo, so its inline hooker is compiled
 in. Code that differs between the versions lives in `include/Compat.hpp` or
-checks `SBSC_BS_1_40`.
+checks `SBSC_BS_1_40`. `bs-1.40.8/loosen-deps.ps1` then relaxes the packaged
+`mod.json` from those exact versions to `^` ranges, so MBF doesn't try to move
+a library that a player's other mods need newer.
 
 ## Notes
 - `tests/RunNativeTests.ps1 -OutputDirectory <folder> -RunOnQuest -AdbPath
@@ -130,5 +132,37 @@ checks `SBSC_BS_1_40`.
   (an NDK stable library), so no zip library is bundled.
 - TLS certificates are verified against the headset's own CA store
   (`/apex/com.android.conscrypt/cacerts`, then `/system/etc/security/cacerts`).
-- Config: `/sdcard/ModData/com.beatgames.beatsaber/Configs/SimpleBSStreamChat.json`,
-  same key names as the PC `UserData\SimpleBSStreamChat.json`.
+- Config:
+  `/sdcard/Android/data/com.beatgames.beatsaber/files/Configs/SimpleBSStreamChat.json`.
+
+## Credits
+Inspired by [BeatSaberPlus](https://github.com/hardcpp/BeatSaberPlus) and
+[EnhancedStreamChat](https://github.com/brian91292/EnhancedStreamChat).
+
+Built on [BSML](https://github.com/bsq-ports/Quest-BSML),
+[SongCore](https://github.com/raineaeternal/Quest-SongCore),
+[beatsaber-hook, custom-types and paperlog](https://github.com/QuestPackageManager),
+[scotland2](https://github.com/sc2ad/scotland2) and bs-cordl. Emoji draw through
+[UnicodeQuest](https://github.com/Metalit/UnicodeQuest).
+
+Adapted from other mods:
+- Dragging the panel (`UI/ChatPanel`) follows Quest-BSML's `FloatingScreenHandle`.
+- Opening Solo on a song (`Songs/LevelNavigator`) follows the `SelectLevel`
+  function in [MetaCoreBS](https://github.com/Metalit/MetaCoreBS).
+
+Used as references only, with no code copied:
+- [CatCore](https://github.com/ErisApps/CatCore) for Twitch IRC protocol details.
+- [SongDownloader](https://github.com/darknight1050/SongDownloader) for map
+  downloads and folder naming.
+
+Compiled into the mod:
+- [libcurl](https://curl.se/) 8.5.0, rapidjson and fmt.
+- OpenSSL 1.1.1w, through libcurl. This product includes software developed by
+  the OpenSSL Project for use in the OpenSSL Toolkit (http://www.openssl.org/).
+  This product includes cryptographic software written by Eric Young
+  (eay@cryptsoft.com).
+- [And64InlineHook](https://github.com/Rprop/And64InlineHook) (MIT), in the
+  1.40.8 build only.
+
+## License
+MIT, see [LICENSE](LICENSE). The projects above keep their own licenses.

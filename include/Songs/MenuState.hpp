@@ -7,7 +7,7 @@ namespace SimpleBSStreamChat::Songs::MenuState {
     /// Any menu screen: not during a song or a menu transition.
     bool InMenu();
     /// The solo or party results screen. Accepting from it used to crash the
-    /// game (seen on the PC build), so Accept stays off there.
+    /// game (seen on the old PC version), so Accept stays off there.
     bool ResultsShowing();
     /// Accept is live on the main menu and Solo song list only.
     bool CanAccept();

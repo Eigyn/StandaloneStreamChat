@@ -48,7 +48,7 @@ MOD_EXPORT_FUNC void late_load() noexcept {
     static auto hookLogger = Paper::ConstLoggerContext(MOD_ID);
     INSTALL_HOOK(hookLogger, MainMenuViewController_DidActivate);
 
-    // Connect right away, like the PC build, so chat is live by the time the menu shows.
+    // Connect right away, so chat is live by the time the menu shows.
     SimpleBSStreamChat::Requests::SongRequestManager::Instance().Start();
     SimpleBSStreamChat::Chat::ChatManager::Instance().Start();
     INFO("Late load complete");

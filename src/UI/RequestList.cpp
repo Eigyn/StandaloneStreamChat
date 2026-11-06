@@ -34,7 +34,7 @@ DEFINE_TYPE(SimpleBSStreamChat, RequestList);
 namespace {
     using namespace SimpleBSStreamChat;
 
-    // PC RequestListView values, in panel units.
+    // In panel units.
     constexpr float RowSpacing = 0.8f;
     constexpr float SidecarWidth = 10.0f;
     constexpr float SidecarGap = 3.0f;
@@ -45,8 +45,8 @@ namespace {
     constexpr float MinimumHandleHeight = 2.5f;
     constexpr float ArrowSize = 3.2f;
     UnityEngine::Color const HandleTint(0.95f, 0.82f, 0.29f, 0.95f);
-    // Accepting from the results screen crashed the game (seen on the PC
-    // build), so Accept is off there and this says why.
+    // Accepting from the results screen crashed the game (seen on the old PC
+    // version), so Accept is off there and this says why.
     constexpr char const* ResultsNote = "Song requests can't be accepted from the results screen";
     constexpr float ResultsNoteScale = 0.85f;  // of the chat font size
 

@@ -2,7 +2,7 @@
 
 // The differences between the two Beat Saber versions this mod builds for:
 // 1.45.3 (bs-cordl 4503, beatsaber-hook 9) by default, and 1.40.8 (bs-cordl
-// 4008, beatsaber-hook 6) when SBSC_BS_1_40 is defined by qmod/bs-1.40.8.
+// 4008, beatsaber-hook 6) when SBSC_BS_1_40 is defined by bs-1.40.8/.
 
 #ifdef SBSC_BS_1_40
 #include "beatsaber-hook/shared/config/rapidjson-utils.hpp"

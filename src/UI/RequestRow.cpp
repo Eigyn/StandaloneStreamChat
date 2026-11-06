@@ -33,7 +33,6 @@ namespace {
     using Requests::RequestStatus;
     using Requests::SongRequest;
 
-    // PC colors.
     UnityEngine::Color const AcceptTint(0.45f, 0.92f, 0.45f, 1.0f);
     UnityEngine::Color const DenyTint(1.0f, 0.42f, 0.42f, 1.0f);
     UnityEngine::Color const RingTint(1.0f, 0.82f, 0.29f, 0.95f);
@@ -93,7 +92,7 @@ namespace {
                status == static_cast<int>(RequestStatus::Failed);
     }
 
-    // The PC's row text: "#1 requester" over the map line or install status.
+    // The row text: "#1 requester" over the map line or install status.
     std::string Format(SongRequest const& request, int position) {
         auto text = fmt::format("<color=#FFD24A>#{}</color> ", position) + UI::Escape(request.requester) + "\n";
         auto detail = request.detail.empty() ? std::string() : " " + UI::Escape(request.detail);

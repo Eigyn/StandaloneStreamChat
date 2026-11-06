@@ -59,7 +59,7 @@ namespace SimpleBSStreamChat::Requests {
             auto url = Json::Scalar(Json::Get(version, "downloadURL"));
             std::transform(hash.begin(), hash.end(), hash.begin(), [](unsigned char c) { return std::tolower(c); });
             if (!IsHash(hash) || !url.starts_with("https://")) {
-                // Nothing installable (as the PC treats a map without a LatestVersion).
+                // Nothing installable.
                 result.outcome = LookupOutcome::NotFound;
                 return result;
             }

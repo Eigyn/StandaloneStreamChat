@@ -16,7 +16,7 @@
 DEFINE_TYPE(SimpleBSStreamChat, ViewerCountView);
 
 namespace {
-    // "5,605" like the PC's N0 format; an en dash while unknown or offline.
+    // "5,605"; an en dash while unknown or offline.
     std::string FormatViewers(int viewers) {
         if (viewers < 0)
             return "–";

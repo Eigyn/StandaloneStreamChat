@@ -3,22 +3,22 @@
 #include <string>
 
 namespace SimpleBSStreamChat {
-    // Where "Recenter Window" puts the panel (same as the PC build).
+    // Where "Recenter Window" puts the panel.
     inline constexpr float DefaultPositionX = 0.0f;
     inline constexpr float DefaultPositionY = 4.4f;
     inline constexpr float DefaultPositionZ = 4.0f;
     inline constexpr float DefaultRotationX = -25.0f;
     inline constexpr float DefaultRotationY = 0.0f;
 
-    // Mirrors the PC PluginConfig fields the Quest build supports so far,
-    // under the same JSON keys. Stored under the mod's ModData Configs folder.
+    // The mod's settings, saved as JSON in the Configs folder of the game's
+    // external files directory.
     struct Config {
         std::string twitchChannel;  // without '#'
         bool enableTwitch = true;
         std::string youTubeChannel;  // @handle, UC channel id, or 11-char video id
         bool enableYouTube = true;
         std::string kickChannel;  // slug, or numeric chatroom id
-        // On by default (the PC default is off): nothing connects until a
+        // On by default: nothing connects until a
         // channel is set, so the toggle would only be one more step.
         bool enableKick = true;
         bool showPanel = true;
@@ -57,7 +57,7 @@ namespace SimpleBSStreamChat {
         float rotationX = DefaultRotationX;
         float rotationY = DefaultRotationY;
 
-        // Song requests: viewers type "!bsr <key>" (the PC's !request isn't used).
+        // Song requests: viewers type "!bsr <key>".
         bool enableSongRequests = true;
         // 0 = everyone, 1 = moderators + broadcaster, 2 = broadcaster only.
         int whoCanRequest = 0;

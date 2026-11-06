@@ -11,7 +11,7 @@
 #include "UnityEngine/UI/Button.hpp"
 #include "UnityEngine/UI/LayoutElement.hpp"
 
-// One request in the request list, laid out like the PC's: platform icon,
+// One request in the request list: platform icon,
 // "#position requester" over "song · artist · mapper · key [status]", then
 // Accept and Deny, which give way to a progress ring while the map installs.
 DECLARE_CLASS_CODEGEN(SimpleBSStreamChat, RequestRow, UnityEngine::MonoBehaviour) {

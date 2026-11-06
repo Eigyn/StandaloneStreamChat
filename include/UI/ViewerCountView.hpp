@@ -21,7 +21,7 @@ DECLARE_CLASS_CODEGEN(SimpleBSStreamChat, ViewerCountView, UnityEngine::MonoBeha
    public:
     static ViewerCountView* Create(UnityEngine::Transform* parent, Chat::ChatPlatform platform);
     /// `viewers` -1 shows a dash. Without icons the platform's [T]/[Y]/[K]
-    /// text tag stands in, as on the PC. `size` is both the font size and
+    /// text tag stands in. `size` is both the font size and
     /// the icon's edge length.
     void Show(int viewers, bool useIcon, float size, UnityEngine::Material* textMaterial);
 };

@@ -59,6 +59,6 @@ namespace SimpleBSStreamChat::Chat {
     std::string NameColorFor(std::string_view name);
 
     /// `value` reduced to characters that are safe in a TMP sprite name;
-    /// anything else becomes its hex code. Same scheme as the PC StableKey.
+    /// anything else becomes its hex code.
     std::string StableKey(std::string_view value);
 }

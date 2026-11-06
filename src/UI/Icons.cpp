@@ -150,7 +150,7 @@ namespace SimpleBSStreamChat::UI::Icons {
         return Cached(sprite, ChatPng);
     }
 
-    // The PC's progress ring: 64 px, outer radius 29, inner 21.
+    // The progress ring: 64 px, outer radius 29, inner 21.
     UnityEngine::Sprite* Ring() {
         static UnityW<UnityEngine::Sprite> sprite;
         if (!sprite) {

@@ -10,7 +10,7 @@
 #include "UnityEngine/Sprite.hpp"
 #include "UnityEngine/UI/Button.hpp"
 
-// The panel's Requests mode, as on the PC: a whole number of fixed-height
+// The panel's Requests mode: a whole number of fixed-height
 // rows filling the feed area, scrolled one request at a time by the arrows
 // on a strip outside the panel's right edge (shown only when the queue
 // overflows), with a bar marking where the view is.

@@ -15,7 +15,7 @@ namespace SimpleBSStreamChat::Chat {
     /// Read-only Kick chat. Kick's official API needs an app login, so this
     /// follows the web client: look the channel up, get an anonymous guest
     /// token, then read the chatroom over Kick's Centrifugo WebSocket.
-    /// (Kick moved chat off Pusher; the PC client's Pusher keys no longer connect.)
+    /// (Kick moved chat off Pusher; the old Pusher keys no longer connect.)
     class KickChatClient : public ChatService {
        public:
         KickChatClient(std::string_view channel, MessageHandler onMessage, StatusHandler onStatus);

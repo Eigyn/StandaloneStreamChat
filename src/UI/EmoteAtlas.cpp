@@ -41,7 +41,7 @@ namespace SimpleBSStreamChat::UI {
         constexpr int GridSize = AtlasSize / CellPitch;  // 15 x 15 cells
         constexpr int MaxCellsWide = 4;                  // wide emotes span up to 4 cells
         constexpr int MaxContentWidth = MaxCellsWide * CellPitch - 2 * Padding;
-        // Sprites draw at 90% of the font size, like the PC build.
+        // Sprites draw at 90% of the font size.
         constexpr float DisplayScale = 0.9f;
         constexpr int MaxDecodesPerPump = 3;
         constexpr size_t MaxDownloadBytes = 2 * 1024 * 1024;
@@ -192,7 +192,7 @@ namespace SimpleBSStreamChat::UI {
         KeepLoaded(decodeTexture);
         _decodeTexture = decodeTexture;
 
-        // The PC build's sprite material: a NoGlow copy over the atlas.
+        // The sprite material: a NoGlow copy over the atlas.
         auto material = UnityEngine::Material::New_ctor(BSML::Helpers::GetUINoGlowMat());
         material->set_name("SimpleBSStreamChatEmotes");
         material->set_mainTexture(texture);

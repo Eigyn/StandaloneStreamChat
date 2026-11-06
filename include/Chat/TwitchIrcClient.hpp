@@ -12,7 +12,7 @@ namespace SimpleBSStreamChat::Net {
 
 namespace SimpleBSStreamChat::Chat {
     /// Anonymous read-only Twitch chat over IRC/TLS using the documented
-    /// "justinfan" login: no OAuth, no client id. Port of the PC client.
+    /// "justinfan" login: no OAuth, no client id.
     class TwitchIrcClient : public ChatService {
        public:
         TwitchIrcClient(std::string_view channel, MessageHandler onMessage, StatusHandler onStatus);

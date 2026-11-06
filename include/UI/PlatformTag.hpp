@@ -6,7 +6,7 @@
 
 namespace SimpleBSStreamChat::UI {
     /// TMP rich-text tag standing in for a platform icon, with a trailing
-    /// space; the PC panel's fallback when its icons are unavailable.
+    /// space; the fallback when the icons are unavailable.
     inline std::string_view PlatformTag(Chat::ChatPlatform platform) {
         switch (platform) {
             case Chat::ChatPlatform::Twitch:

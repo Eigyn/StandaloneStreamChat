@@ -8,7 +8,7 @@
 
 namespace SimpleBSStreamChat::Chat {
     /// Minimal IRCv3 line parser: `@tags :prefix COMMAND params :trailing`.
-    /// Pure logic, no I/O. Port of the PC IrcMessage.
+    /// Pure logic, no I/O.
     struct IrcMessage {
         std::unordered_map<std::string, std::string> tags;
         std::string prefix;

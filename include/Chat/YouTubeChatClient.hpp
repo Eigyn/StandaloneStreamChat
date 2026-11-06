@@ -14,7 +14,6 @@ namespace SimpleBSStreamChat::Net {
 namespace SimpleBSStreamChat::Chat {
     /// YouTube live chat through the public InnerTube endpoint the browser's
     /// popout chat uses: no API key from the user, no login, no quota.
-    /// Port of the PC InnerTubeChatSession + YouTubeLiveChatClient.
     class YouTubeChatClient : public ChatService {
        public:
         /// `seen` outlives this client so a restart doesn't replay the backlog

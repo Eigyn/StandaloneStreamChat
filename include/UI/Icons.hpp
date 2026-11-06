@@ -7,9 +7,8 @@
 #include <span>
 
 namespace SimpleBSStreamChat::UI::Icons {
-    // Button art from the PC build's Resources folder (copied to qmod/assets
-    // and compiled into the .so). Loaded on first use; Unity's scene-change
-    // asset cleanup is told to leave them alone.
+    // Button art from assets/, compiled into the .so. Loaded on first use;
+    // Unity's scene-change asset cleanup is told to leave them alone.
     UnityEngine::Sprite* Lock();
     UnityEngine::Sprite* Unlock();
     /// Move-mode arrows: 0 = free, 1 = X only, 2 = Y only, 3 = Z only.

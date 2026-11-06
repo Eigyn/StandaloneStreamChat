@@ -26,7 +26,7 @@
 // Floating chat panel. The newest messages stack upward from the bottom as
 // ChatRows; older ones overflow the top and are clipped by a RectMask2D. Lives
 // on a DontDestroyOnLoad floating screen so it survives soft restarts and songs.
-// The PC panel's lock, move-mode and requests buttons sit in a column outside
+// The lock, move-mode and requests buttons sit in a column outside
 // its left edge; the requests button swaps the feed for the request queue.
 //
 // Moving: while unlocked, pressing anywhere on the backdrop grabs the panel.
@@ -99,7 +99,7 @@ DECLARE_CLASS_CODEGEN_INTERFACES(SimpleBSStreamChat, ChatPanel, UnityEngine::Mon
     void ToggleLock();
     void ToggleMoveMode();
     void ToggleRequestsMode();
-    /// The requests button shows the mode it switches to, as on the PC.
+    /// The requests button shows the mode it switches to.
     void UpdateRequestsButton();
     void FollowController();
     void ApplyMoveConstraint();

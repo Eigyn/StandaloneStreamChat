@@ -12,8 +12,8 @@ namespace SimpleBSStreamChat::Requests {
     /// True if `text` starts with the !bsr command word.
     bool IsBsrCommand(std::string_view text);
 
-    /// Reads "!bsr <key>" or "!bsr https://beatsaver.com/maps/<key>". The
-    /// PC's !request command is deliberately not supported.
+    /// Reads "!bsr <key>" or "!bsr https://beatsaver.com/maps/<key>".
+    /// !request is deliberately not supported.
     BsrCommand ParseBsr(std::string_view text);
 
     /// A BeatSaver key: 1-6 lowercase hex digits, no leading zeros.

@@ -23,7 +23,7 @@ namespace SimpleBSStreamChat::UI {
 
     /// Emote images, plus the chat-line platform and badge icons, packed into
     /// one 1024x1024 texture and exposed to TMP as a sprite asset, so chat text
-    /// shows them inline with <sprite name="..."> tags (as the PC build does).
+    /// shows them inline with <sprite name="..."> tags.
     ///
     /// Emotes download on a background thread the first time they're asked
     /// for; until then (or if they fail) callers show the emote's name. The

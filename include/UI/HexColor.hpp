@@ -10,7 +10,7 @@
 
 namespace SimpleBSStreamChat::UI {
     /// "#RRGGBB" (any trailing alpha ignored) as an opaque color, or
-    /// `fallback` when malformed. Same format the PC config stores.
+    /// `fallback` when malformed.
     inline UnityEngine::Color ColorFromHex(std::string_view hex, UnityEngine::Color fallback) {
         if (hex.size() < 7 || hex[0] != '#')
             return fallback;

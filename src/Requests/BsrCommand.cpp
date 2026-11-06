@@ -24,7 +24,7 @@ namespace SimpleBSStreamChat::Requests {
                    });
         }
 
-        // Same rules as the PC RequestCommandParser.ExtractKey.
+        // The key in the first word after the command, bare or in a BeatSaver link.
         std::string ExtractKey(std::string_view remainder) {
             auto tokenEnd = std::find_if(remainder.begin(), remainder.end(), IsSpace);
             std::string raw(remainder.begin(), tokenEnd);

@@ -3,9 +3,7 @@
 #include <string_view>
 
 namespace SimpleBSStreamChat::UI {
-    // The PC build's UI/Settings.bsml, same tabs, labels, ranges and hints,
-    // minus the Map Overlay tab (PC only) and the Requests tab's "Use !bsr"
-    // toggle (the Quest build only takes !bsr), plus a Quest-only Corners slider.
+    // The settings screen: tabs, labels, ranges and hints.
     // Values bind to SettingsHost properties (C++ names, so camelCase ids).
     inline constexpr std::string_view SettingsBsml = R"BSML(
 <vertical child-control-height='false'>

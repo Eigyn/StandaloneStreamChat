@@ -31,7 +31,7 @@ namespace SimpleBSStreamChat::Requests {
         using Chat::ChatPlatform;
         namespace Json = Chat::Json;
 
-        // A fixed abuse guard (the list scrolls), as on the PC.
+        // A fixed abuse guard (the list scrolls).
         constexpr size_t QueueCapacity = 100;
         constexpr auto NotFoundLinger = 30s;
         constexpr auto NoticeInterval = 5s;
@@ -85,8 +85,8 @@ namespace SimpleBSStreamChat::Requests {
             }
         }
 
-        // "<key> (<song> - <mapper>)", the folder name SongDownloader and the
-        // PC build use, with characters file systems refuse swapped out.
+        // "<key> (<song> - <mapper>)", the folder name SongDownloader uses, with
+        // characters file systems refuse swapped out.
         std::string FolderName(SongRequest const& request) {
             std::string name = request.key + " (" + request.songName + " - " + request.mapper + ")";
             for (auto& c : name) {
@@ -117,7 +117,6 @@ namespace SimpleBSStreamChat::Requests {
             std::filesystem::remove(StoredQueuePath(), ec);
         }
 
-        // Same key names as the PC's SimpleBSStreamChat.Requests.json.
         void WriteStored(std::vector<SongRequest> const& requests) {
             rapidjson::StringBuffer buffer;
             rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
@@ -435,7 +434,7 @@ namespace SimpleBSStreamChat::Requests {
                 break;
             case LookupOutcome::Error: {
                 // Retried without limit, backing off 3, 6, 12, 24, 48, 48... s
-                // plus jitter (as on the PC), so an outage never purges valid
+                // plus jitter, so an outage never purges valid
                 // requests; the streamer can Deny a stuck row meanwhile.
                 entry->failedLookups++;
                 double delay = static_cast<double>(std::min(48, 3 << std::min(entry->failedLookups - 1, 4)));
@@ -452,7 +451,7 @@ namespace SimpleBSStreamChat::Requests {
     }
 
     void SongRequestManager::PruneLocked(Clock::time_point now) {
-        // Unknown keys leave after a while, as on the PC.
+        // Unknown keys leave after a while.
         if (std::erase_if(_queue, [now](Entry const& e) { return e.request.status == RequestStatus::NotFound && now >= e.dropAt; }) > 0)
             ChangedLocked(true);
 
