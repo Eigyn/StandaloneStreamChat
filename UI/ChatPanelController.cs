@@ -4,6 +4,7 @@ using System.Threading;
 using BeatSaberMarkupLanguage;
 using BeatSaberMarkupLanguage.FloatingScreen;
 using BeatSaberMarkupLanguage.MenuButtons;
+using BeatSaberMarkupLanguage.Util;
 using SimpleBSStreamChat.Chat;
 using SimpleBSStreamChat.Chat.Emotes;
 using SimpleBSStreamChat.Chat.Requests;
@@ -58,16 +59,18 @@ namespace SimpleBSStreamChat.UI
 
         private readonly struct PendingChatRow
         {
-            public PendingChatRow(string text, Sprite? platformIcon, Sprite? badgeIcon)
+            public PendingChatRow(string text, Sprite? platformIcon, Sprite? badgeIcon, ChatMessage source)
             {
                 Text = text;
                 PlatformIcon = platformIcon;
                 BadgeIcon = badgeIcon;
+                Source = source;
             }
 
             public string Text { get; }
             public Sprite? PlatformIcon { get; }
             public Sprite? BadgeIcon { get; }
+            public ChatMessage Source { get; }   // owning message, for visible-emote marking
         }
 
         // Gap between row children (icons/text); also baked into the width
@@ -184,12 +187,21 @@ namespace SimpleBSStreamChat.UI
             _overlay = overlay;
             if (_requestManager != null)
             {
+                // Idempotent: unsubscribe first so a second Initialize can't
+                // double-subscribe (removing an absent handler is a safe no-op).
+                _requestManager.Added -= HandleRequestAdded;
                 _requestManager.Added += HandleRequestAdded;
+                _requestManager.Accepted -= HandleRequestAccepted;
                 _requestManager.Accepted += HandleRequestAccepted;
                 // Restore happens before the panel is initialized, so seed the
                 // unread state from the queue instead of relying on Added.
                 _hasUnreadRequests = _requestManager.HasRequests;
             }
+            // BSML's button list lives in the menu container, which a soft
+            // restart rebuilds empty while this panel survives (DontDestroyOnLoad),
+            // so re-register on every menu init, not just the first CreatePanel.
+            MainMenuAwaiter.MainMenuInitializing -= RegisterMenuButton;
+            MainMenuAwaiter.MainMenuInitializing += RegisterMenuButton;
             MigrateDefaultPanelPosition();
             MigrateBackgroundDefaults();
         }
@@ -215,6 +227,7 @@ namespace SimpleBSStreamChat.UI
 
         private void OnDestroy()
         {
+            MainMenuAwaiter.MainMenuInitializing -= RegisterMenuButton;
             if (_menuButton != null)
             {
                 try { MenuButtons.Instance.UnregisterButton(_menuButton); }
@@ -960,7 +973,7 @@ namespace SimpleBSStreamChat.UI
                     showTextTags, iconCount, imageEmotes, imageEmotes, _thirdPartyEmotes?.Version ?? 0);
                 for (var li = 0; li < wrapped.Lines.Length; li++)
                     _pendingRows.Add(new PendingChatRow(wrapped.Lines[li],
-                        li == 0 ? platformIcon : null, li == 0 ? badgeIcon : null));
+                        li == 0 ? platformIcon : null, li == 0 ? badgeIcon : null, m));
             }
 
             // The feed stays non-scrollable: render only the newest complete
@@ -968,10 +981,20 @@ namespace SimpleBSStreamChat.UI
             var rowBudget = UpdateVisibleRowBudget();
             _lastRenderedRowBudget = rowBudget;
             var firstVisible = Mathf.Max(0, _pendingRows.Count - rowBudget);
+            // Tell the atlas which emotes are on screen this rebuild; only those
+            // animate (see EmoteAtlas.AnimateReadyEntries). Stops off-screen emotes
+            // from old messages from driving per-frame atlas work.
+            _emotes?.BeginVisiblePass();
+            ChatMessage? markedSource = null;
             var index = 0;
             for (var i = firstVisible; i < _pendingRows.Count; i++)
             {
                 var row = _pendingRows[i];
+                if (_emotes != null && !ReferenceEquals(row.Source, markedSource))
+                {
+                    MarkVisibleEmotes(row.Source);
+                    markedSource = row.Source;
+                }
                 AssignRow(ref index, row.Text, config, backgroundColor,
                     row.PlatformIcon, row.BadgeIcon, iconSize);
             }
@@ -985,6 +1008,19 @@ namespace SimpleBSStreamChat.UI
             LayoutRebuilder.ForceRebuildLayoutImmediate(_rowContainer);
             TrimRows();
             _trimFramesRemaining = TrimFramesAfterRebuild;
+        }
+
+        // Marks a shown message's custom emotes (7TV/BTTV/native animated) as
+        // on-screen so the atlas animates only them. Unicode emoji are static and
+        // need no marking.
+        private void MarkVisibleEmotes(ChatMessage message)
+        {
+            var segments = message?.Segments;
+            if (_emotes == null || segments == null)
+                return;
+            for (var i = 0; i < segments.Count; i++)
+                if (segments[i] is EmoteSegment emote)
+                    _emotes.MarkVisible(emote.Emote.Key);
         }
 
         private WrappedMessage GetWrappedMessage(ChatMessage message, TextMeshProUGUI measure,
@@ -1138,7 +1174,13 @@ namespace SimpleBSStreamChat.UI
         {
             if (_config == null || _measureText == null)
                 return;
-            var face = _measureText.font.faceInfo;
+            // Guard .font (as RowHeight() already does): if the TMP font asset is
+            // ever null this runs every frame and would otherwise NRE, stalling the
+            // whole Update loop (and the request list with it).
+            var font = _measureText.font;
+            if (font == null)
+                return;
+            var face = font.faceInfo;
             var lineRatio = face.pointSize > 0f ? face.lineHeight / face.pointSize : 1.2f;
             _rowUnit = Mathf.Max(0.01f, _config.FontSize * lineRatio);
         }
@@ -1835,12 +1877,13 @@ namespace SimpleBSStreamChat.UI
             _nextViewerRefresh = 0f;
         }
 
-        // Called from CreatePanel, i.e. only once BSML is demonstrably ready.
+        // Called from CreatePanel (once BSML is demonstrably ready) and from
+        // MainMenuAwaiter.MainMenuInitializing after every menu (re)load.
+        // BSML ignores a button whose text is already registered, so the
+        // overlapping calls on first boot are harmless.
         private void RegisterMenuButton()
         {
-            if (_menuButton != null)
-                return;
-            _menuButton = new MenuButton("SimpleBSStreamChat", "Twitch + YouTube + Kick stream chat settings", ShowSettingsFlow, true);
+            _menuButton ??= new MenuButton("SimpleBSStreamChat", "Twitch + YouTube + Kick stream chat settings", ShowSettingsFlow, true);
             MenuButtons.Instance.RegisterButton(_menuButton);
             _log?.Info("Registered Mods menu button.");
         }

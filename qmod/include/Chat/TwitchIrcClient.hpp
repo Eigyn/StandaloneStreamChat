@@ -1,0 +1,33 @@
+#pragma once
+
+#include "Chat/ChatService.hpp"
+#include "Chat/IrcMessage.hpp"
+
+#include <memory>
+#include <string>
+
+namespace SimpleBSStreamChat::Net {
+    class HttpClient;
+}
+
+namespace SimpleBSStreamChat::Chat {
+    /// Anonymous read-only Twitch chat over IRC/TLS using the documented
+    /// "justinfan" login: no OAuth, no client id. Port of the PC client.
+    class TwitchIrcClient : public ChatService {
+       public:
+        TwitchIrcClient(std::string_view channel, MessageHandler onMessage, StatusHandler onStatus);
+        ~TwitchIrcClient() override;
+
+       private:
+        void Run() override;
+        void ConnectAndRead();
+        void HandlePrivmsg(IrcMessage const& message);
+        void HandleControl(IrcMessage const& message);
+        void UpdateViewers();
+
+        std::string _channel;  // lowercase, without '#'
+        std::string _channelId;
+        int _messageCount = 0;
+        std::unique_ptr<Net::HttpClient> _http;  // viewer counts; created on the client's thread
+    };
+}

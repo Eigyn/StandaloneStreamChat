@@ -57,6 +57,8 @@ namespace SimpleBSStreamChat.UI
         private TextMeshProUGUI? _requestTitleText;
         private TextMeshProUGUI[] _requestLines = Array.Empty<TextMeshProUGUI>();
         private readonly List<SongRequest> _queueSnapshot = new List<SongRequest>();
+        private int _lastRequestVersion = -1;
+        private string? _shownRequestTitle;
 
         private string? _currentLevelId;
         private string[] _currentMappers = Array.Empty<string>();
@@ -91,9 +93,13 @@ namespace SimpleBSStreamChat.UI
             if (_config == null)
                 return;
 
-            // Build lazily once the menu is up (fonts/BSML ready), with retries.
+            // Build lazily once the menu is up (fonts/BSML ready), with retries —
+            // and only once the overlay is actually enabled, so a user who never
+            // turns it on doesn't pay the one-time canvas build.
             if (_canvasGo == null)
             {
+                if (!_config.OverlayEnabled)
+                    return;
                 if (Time.unscaledTime < _nextBuildAttempt)
                     return;
                 if (SceneManager.GetActiveScene().name != "MainMenu")
@@ -125,15 +131,20 @@ namespace SimpleBSStreamChat.UI
         private void UpdateMode()
         {
             var inMenu = SceneManager.GetActiveScene().name == "MainMenu";
+            var requestsMode = inMenu && _config.EnableSongRequests && _requestManager != null;
             if (inMenu)
             {
-                PollSelectedLevel();
+                // Skip the selection poll while the request panel is showing: the
+                // song card is hidden, so resolving a BeatSaver key and downloading
+                // a cover for every browsed level is wasted network/texture work.
+                // PollPlayingLevel repopulates the card the moment a song starts.
+                if (!requestsMode)
+                    PollSelectedLevel();
                 // Drop the cached gameplay transition so the next song re-resolves
                 // it (SO instances linger after the scene unloads).
                 _playingTransition = null;
             }
 
-            var requestsMode = inMenu && _config.EnableSongRequests && _requestManager != null;
             var songMode = !inMenu && GetAudioSync() != null;
             if (songMode)
                 PollPlayingLevel();
@@ -159,7 +170,21 @@ namespace SimpleBSStreamChat.UI
             if (_requestManager == null || _requestLines.Length == 0)
                 return;
             if (_requestTitleText != null)
-                _requestTitleText.text = RequestCommandLabel() + " is available";
+            {
+                var title = RequestCommandLabel() + " is available";
+                if (_shownRequestTitle != title)
+                {
+                    _shownRequestTitle = title;
+                    _requestTitleText.text = title;
+                }
+            }
+
+            // Only re-copy the queue (a per-request snapshot under the lock) and
+            // rebuild the preview lines when the queue actually changed.
+            var version = _requestManager.Version;
+            if (version == _lastRequestVersion)
+                return;
+            _lastRequestVersion = version;
 
             _requestManager.CopyRequests(_queueSnapshot);
             for (var i = 0; i < _requestLines.Length; i++)
@@ -485,6 +510,7 @@ namespace SimpleBSStreamChat.UI
             var offset = new Vector2(srcRectPixels.x / src.width, srcRectPixels.y / src.height);
 
             RenderTexture? rt = null;
+            Texture2D? tex = null;
             var prev = RenderTexture.active;
             try
             {
@@ -492,14 +518,16 @@ namespace SimpleBSStreamChat.UI
                     RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
                 Graphics.Blit(src, rt, scale, offset);
                 RenderTexture.active = rt;
-                var tex = new Texture2D(CoverTextureSize, CoverTextureSize, TextureFormat.RGBA32, false)
+                tex = new Texture2D(CoverTextureSize, CoverTextureSize, TextureFormat.RGBA32, false)
                 {
                     wrapMode = TextureWrapMode.Clamp,
                     filterMode = FilterMode.Bilinear,
                 };
                 tex.ReadPixels(new Rect(0, 0, CoverTextureSize, CoverTextureSize), 0, 0);
                 tex.Apply(false, false);
-                return tex;
+                var result = tex;
+                tex = null; // ownership passes to the caller; don't destroy below
+                return result;
             }
             catch (Exception ex)
             {
@@ -511,6 +539,9 @@ namespace SimpleBSStreamChat.UI
                 RenderTexture.active = prev;
                 if (rt != null)
                     RenderTexture.ReleaseTemporary(rt);
+                // Only non-null if an exception left an allocated texture unreturned.
+                if (tex != null)
+                    Destroy(tex);
             }
         }
 

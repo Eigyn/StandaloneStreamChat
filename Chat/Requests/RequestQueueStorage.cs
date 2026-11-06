@@ -12,6 +12,10 @@ namespace SimpleBSStreamChat.Chat.Requests
         private const string FileName = "SimpleBSStreamChat.Requests.json";
         private readonly object _ioLock = new object();
         private readonly IPALogger _log;
+        // Highest queue version written so far. Routine saves run on background
+        // threads and can complete out of order; an older snapshot must never
+        // overwrite a newer one.
+        private long _lastSavedVersion = long.MinValue;
 
         public RequestQueueStorage(IPALogger log)
         {
@@ -40,14 +44,26 @@ namespace SimpleBSStreamChat.Chat.Requests
             }
         }
 
-        public void Save(IEnumerable<SongRequest> requests)
+        public void Save(IEnumerable<SongRequest> requests, long version)
         {
             lock (_ioLock)
             {
+                // Drop a payload older than (or equal to) the last one written.
+                if (version <= _lastSavedVersion)
+                    return;
+
                 var path = GetPath();
+                var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 try
                 {
-                    Directory.CreateDirectory(Path.GetDirectoryName(path));
+                    var directory = Path.GetDirectoryName(path);
+                    if (string.IsNullOrEmpty(directory))
+                    {
+                        _log.Warn("Could not save request queue: user data path has no directory.");
+                        return;
+                    }
+                    Directory.CreateDirectory(directory);
+
                     var entries = new List<StoredRequest>();
                     foreach (var request in requests)
                     {
@@ -63,7 +79,6 @@ namespace SimpleBSStreamChat.Chat.Requests
                     }
 
                     var json = JsonConvert.SerializeObject(entries, Formatting.Indented);
-                    var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
                     File.WriteAllText(tempPath, json);
                     // Atomic swap: never delete the existing file before the
                     // replacement is in place, so a crash mid-save can't leave the
@@ -72,10 +87,21 @@ namespace SimpleBSStreamChat.Chat.Requests
                         File.Replace(tempPath, path, null);
                     else
                         File.Move(tempPath, path);
+                    _lastSavedVersion = version;
                 }
                 catch (Exception ex)
                 {
                     _log.Warn($"Could not save request queue: {ex.Message}");
+                }
+                finally
+                {
+                    // Never leave the uniquely-named temp file behind on failure.
+                    try
+                    {
+                        if (File.Exists(tempPath))
+                            File.Delete(tempPath);
+                    }
+                    catch { /* best effort */ }
                 }
             }
         }

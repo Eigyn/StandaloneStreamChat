@@ -13,12 +13,15 @@ namespace SimpleBSStreamChat.Chat.Kick
 {
     internal sealed class KickChannelInfo
     {
+        // The realtime connection lookup takes this; it also accepts a chatroom id.
+        public int ChannelId { get; }
         public int ChatroomId { get; }
         public int ViewerCount { get; }
         public string DisplayName { get; }
 
-        public KickChannelInfo(int chatroomId, int viewerCount, string displayName)
+        public KickChannelInfo(int channelId, int chatroomId, int viewerCount, string displayName)
         {
+            ChannelId = channelId;
             ChatroomId = chatroomId;
             ViewerCount = viewerCount;
             DisplayName = displayName;
@@ -45,7 +48,7 @@ namespace SimpleBSStreamChat.Chat.Kick
                 return null;
 
             if (int.TryParse(normalized, out var chatroomId) && chatroomId > 0)
-                return new KickChannelInfo(chatroomId, -1, normalized);
+                return new KickChannelInfo(chatroomId, chatroomId, -1, normalized);
 
             if (TryGetCached(normalized, FreshCacheDuration, out var cached))
                 return cached;
@@ -139,20 +142,33 @@ namespace SimpleBSStreamChat.Chat.Kick
             }
         }
 
-        private static async Task<string?> FetchWithCurlAsync(string slug, IPALogger log, CancellationToken cancellationToken)
+        private static Task<string?> FetchWithCurlAsync(string slug, IPALogger log, CancellationToken cancellationToken) =>
+            CurlJsonAsync("https://kick.com/api/v2/channels/" + Uri.EscapeDataString(slug), null,
+                "https://kick.com/" + slug, "channel lookup", log, cancellationToken);
+
+        /// <summary>One request through Windows' curl.exe, which gets past Kick's
+        /// Cloudflare checks where the game's HttpClient is refused. POSTs
+        /// <paramref name="postJson"/> when given. Returns the body only if it is JSON.</summary>
+        internal static async Task<string?> CurlJsonAsync(string url, string? postJson, string referer, string what,
+            IPALogger log, CancellationToken cancellationToken)
         {
             try
             {
                 if (cancellationToken.IsCancellationRequested)
                     return null;
 
-                var url = "https://kick.com/api/v2/channels/" + Uri.EscapeDataString(slug);
                 var args = "--silent --show-error --location --compressed --max-time 15 " +
                     "-H " + Quote("Accept: application/json") + " " +
                     "-H " + Quote("Accept-Language: en-US,en;q=0.9") + " " +
-                    "-H " + Quote("Referer: https://kick.com/" + slug) + " " +
-                    "-A " + Quote(BrowserUserAgent) + " " +
-                    Quote(url);
+                    "-H " + Quote("Referer: " + referer) + " " +
+                    "-A " + Quote(BrowserUserAgent) + " ";
+                if (postJson != null)
+                {
+                    // The body goes through stdin to keep JSON quoting off the command line.
+                    args += "-H " + Quote("Content-Type: application/json") + " " +
+                        "-H " + Quote("Origin: https://kick.com") + " --data-binary @- ";
+                }
+                args += Quote(url);
 
                 using (var process = new Process())
                 {
@@ -162,6 +178,7 @@ namespace SimpleBSStreamChat.Chat.Kick
                         Arguments = args,
                         UseShellExecute = false,
                         CreateNoWindow = true,
+                        RedirectStandardInput = postJson != null,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         StandardOutputEncoding = Encoding.UTF8,
@@ -170,6 +187,13 @@ namespace SimpleBSStreamChat.Chat.Kick
                     };
 
                     process.Start();
+                    if (postJson != null)
+                    {
+                        // No BOM: curl sends stdin byte for byte.
+                        var body = new UTF8Encoding(false).GetBytes(postJson);
+                        process.StandardInput.BaseStream.Write(body, 0, body.Length);
+                        process.StandardInput.Close();
+                    }
                     var outputTask = process.StandardOutput.ReadToEndAsync();
                     var errorTask = process.StandardError.ReadToEndAsync();
                     var exited = await WaitForExitAsync(process, TimeSpan.FromSeconds(20), cancellationToken)
@@ -178,7 +202,7 @@ namespace SimpleBSStreamChat.Chat.Kick
                     {
                         try { process.Kill(); } catch { /* process may have exited */ }
                         if (!cancellationToken.IsCancellationRequested)
-                            log.Debug("Kick: curl channel lookup timed out");
+                            log.Debug($"Kick: curl {what} timed out");
                         return null;
                     }
 
@@ -186,13 +210,13 @@ namespace SimpleBSStreamChat.Chat.Kick
                     var error = await errorTask.ConfigureAwait(false);
                     if (process.ExitCode != 0)
                     {
-                        log.Debug("Kick: curl channel lookup failed: " + error.Trim());
+                        log.Debug($"Kick: curl {what} failed: " + error.Trim());
                         return null;
                     }
 
                     if (string.IsNullOrWhiteSpace(output) || !LooksLikeJson(output))
                     {
-                        log.Debug("Kick: curl channel lookup did not return JSON");
+                        log.Debug($"Kick: curl {what} did not return JSON");
                         return null;
                     }
 
@@ -205,7 +229,7 @@ namespace SimpleBSStreamChat.Chat.Kick
             }
             catch (Exception ex)
             {
-                log.Debug("Kick: curl channel lookup unavailable: " + ex.Message);
+                log.Debug($"Kick: curl {what} unavailable: " + ex.Message);
                 return null;
             }
         }
@@ -224,6 +248,7 @@ namespace SimpleBSStreamChat.Chat.Kick
                     ?? TryInt(root["chatroomId"]);
                 if (chatroomId == null || chatroomId <= 0)
                     return null;
+                var channelId = TryInt(root["id"]) ?? chatroomId.Value;
 
                 var viewerCount = TryInt(livestream?["viewer_count"])
                     ?? TryInt(livestream?["viewers"])
@@ -235,7 +260,7 @@ namespace SimpleBSStreamChat.Chat.Kick
                     ?? FirstString(root, "user_username", "slug", "username")
                     ?? slug;
 
-                return new KickChannelInfo(chatroomId.Value, viewerCount, displayName);
+                return new KickChannelInfo(channelId, chatroomId.Value, viewerCount, displayName);
             }
             catch (Exception ex)
             {
@@ -269,10 +294,10 @@ namespace SimpleBSStreamChat.Chat.Kick
 
         private static JObject? AsObject(JToken? token) => token as JObject;
 
-        private static bool LooksLikeJson(string value) =>
+        internal static bool LooksLikeJson(string value) =>
             Regex.IsMatch(value, @"^\s*[\{\[]", RegexOptions.CultureInvariant);
 
-        private static bool ShouldTryCurlForStatus(int statusCode) =>
+        internal static bool ShouldTryCurlForStatus(int statusCode) =>
             statusCode == 403 || statusCode == 429 || statusCode == 503 ||
             statusCode == 521 || statusCode == 522 || statusCode == 523 || statusCode == 524;
 

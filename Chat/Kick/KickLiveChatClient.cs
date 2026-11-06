@@ -17,15 +17,15 @@ namespace SimpleBSStreamChat.Chat.Kick
 {
     /// <summary>
     /// Read-only Kick chat client. Kick's official API is app/OAuth oriented;
-    /// this uses the same public Pusher chat stream the web client exposes.
+    /// this follows the web client instead: an anonymous guest token, then the
+    /// chatroom's stream on Kick's Centrifugo WebSocket. (Kick moved chat off
+    /// Pusher; the old public Pusher app keys no longer connect.)
     /// </summary>
     public class KickLiveChatClient : IChatService
     {
-        private static readonly string[] PusherUrls =
-        {
-            "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0-rc2&flash=false",
-            "wss://ws-us2.pusher.com/app/eb1d5f283081a78b932c?protocol=7&client=js&version=8.4.0-rc2&flash=false",
-        };
+        private const string RealtimeApi = "https://web.kick.com/api/v1/realtime";
+        // Used when the realtime lookup fails; it returned this server for every channel tried.
+        private const string DefaultRealtimeUrl = "wss://realtime.us-west-2.platform.kick.com/connection/websocket";
         private static readonly Regex EmoteRegex =
             new Regex(@"\[emote:\d+:([^\]]+)\]", RegexOptions.CultureInvariant);
         private static readonly Regex EmoteTokenRegex =
@@ -56,7 +56,6 @@ namespace SimpleBSStreamChat.Chat.Kick
         private Task? _runTask;
         private volatile ClientWebSocket? _socket;
         private int _messageCount;
-        private int _preferredPusherUrlIndex;
 
         public KickLiveChatClient(string channel, IPALogger log)
         {
@@ -147,39 +146,19 @@ namespace SimpleBSStreamChat.Chat.Kick
                         continue;
                     }
 
-                    Exception? lastError = null;
-                    var startIndex = _preferredPusherUrlIndex;
-                    for (var offset = 0; offset < PusherUrls.Length; offset++)
-                    {
-                        var index = (startIndex + offset) % PusherUrls.Length;
-                        var url = PusherUrls[index];
-                        try
-                        {
-                            await ConnectAndReadAsync(info, url, ct).ConfigureAwait(false);
-                            _preferredPusherUrlIndex = index;
-                            lastError = null;
-                            break;
-                        }
-                        catch (PusherAppUnavailableException ex)
-                        {
-                            lastError = ex;
-                            _log.Debug("Kick: Pusher app unavailable, trying fallback key: " + ex.Message);
-                        }
-                    }
-
-                    if (lastError != null)
-                        throw lastError;
+                    await ConnectAndReadAsync(info, ct).ConfigureAwait(false);
 
                     errorDelaySeconds = 2;
                     StatusChanged?.Invoke($"Kick: disconnected - reconnecting in {errorDelaySeconds}s");
                     await Task.Delay(TimeSpan.FromSeconds(errorDelaySeconds), ct).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
                     break;
                 }
                 catch (Exception ex)
                 {
+                    // Includes HttpClient timeouts, which surface as TaskCanceledException.
                     if (ct.IsCancellationRequested)
                         break;
                     StatusChanged?.Invoke($"Kick: error ({ex.GetType().Name}), retrying in {errorDelaySeconds}s");
@@ -191,8 +170,12 @@ namespace SimpleBSStreamChat.Chat.Kick
             }
         }
 
-        private async Task ConnectAndReadAsync(KickChannelInfo info, string pusherUrl, CancellationToken ct)
+        private async Task ConnectAndReadAsync(KickChannelInfo info, CancellationToken ct)
         {
+            var clientId = Guid.NewGuid().ToString();
+            var url = await GetRealtimeUrlAsync(info, clientId, ct).ConfigureAwait(false);
+            var token = await GetGuestTokenAsync(clientId, ct).ConfigureAwait(false);
+
             using (var socket = new ClientWebSocket())
             {
                 _socket = socket;
@@ -204,76 +187,79 @@ namespace SimpleBSStreamChat.Chat.Kick
                     socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
                     StatusChanged?.Invoke($"Kick: connecting to {info.DisplayName}...");
-                    await socket.ConnectAsync(new Uri(pusherUrl), ct).ConfigureAwait(false);
+                    await socket.ConnectAsync(new Uri(url), ct).ConfigureAwait(false);
 
-                    var subscribed = false;
+                    var nextId = 1;
+                    await SendCommandAsync(socket, nextId++, "connect",
+                        new JObject { ["token"] = token, ["name"] = "js" }, ct).ConfigureAwait(false);
+                    var subscribeId = nextId++;
+                    await SendCommandAsync(socket, subscribeId, "subscribe",
+                        new JObject { ["channel"] = "chatrooms." + info.ChatroomId + ".v2" }, ct).ConfigureAwait(false);
+
+                    // Guest tokens expire. The server pings about every 25s, so
+                    // checking after each receive is often enough.
+                    DateTime? refreshAtUtc = null;
                     while (!ct.IsCancellationRequested && socket.State == WebSocketState.Open)
                     {
                         var text = await ReceiveTextAsync(socket, ct).ConfigureAwait(false);
                         if (text == null)
                             return;
 
-                        PusherFrame? frame;
-                        try
+                        if (refreshAtUtc.HasValue && DateTime.UtcNow >= refreshAtUtc.Value)
                         {
-                            frame = ParsePusherFrame(text);
+                            refreshAtUtc = null;
+                            var freshToken = await GetGuestTokenAsync(clientId, ct).ConfigureAwait(false);
+                            await SendCommandAsync(socket, nextId++, "refresh",
+                                new JObject { ["token"] = freshToken }, ct).ConfigureAwait(false);
                         }
-                        catch (JsonException ex)
-                        {
-                            _log.Debug("Kick: ignored malformed Pusher frame: " + ex.Message);
-                            continue;
-                        }
-                        if (frame == null)
-                            continue;
 
-                        var evt = frame.Event;
-                        if (evt == "pusher:connection_established")
+                        // One frame can carry several newline-separated replies.
+                        foreach (var line in text.Split('\n'))
                         {
-                            await SubscribeAsync(socket, "chatrooms." + info.ChatroomId + ".v2", ct).ConfigureAwait(false);
-                            await SubscribeAsync(socket, "chatrooms." + info.ChatroomId, ct).ConfigureAwait(false);
-                        }
-                        else if (evt == "pusher_internal:subscription_succeeded")
-                        {
-                            if (!subscribed)
+                            if (line.Length == 0)
+                                continue;
+                            if (line == "{}")
                             {
-                                StatusChanged?.Invoke($"Kick: connected to {info.DisplayName} chat");
-                                subscribed = true;
+                                await SendTextAsync(socket, "{}", ct).ConfigureAwait(false); // ping -> pong
+                                continue;
                             }
-                        }
-                        else if (evt == "pusher:ping")
-                        {
-                            await SendTextAsync(socket, "{\"event\":\"pusher:pong\",\"data\":{}}", ct).ConfigureAwait(false);
-                        }
-                        else if (evt == "pusher:error")
-                        {
-                            var message = StringValue(frame.Data) ?? frame.Data?.ToString() ?? "unknown Pusher error";
-                            if (message.IndexOf("app", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                message.IndexOf("key", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                message.IndexOf("cluster", StringComparison.OrdinalIgnoreCase) >= 0)
-                                throw new PusherAppUnavailableException(message);
-                            throw new InvalidOperationException("Pusher error: " + message);
-                        }
-                        else if (IsChatMessageEvent(evt))
-                        {
-                            ChatMessage? message;
+
+                            JObject reply;
                             try
                             {
-                                message = ParseChatMessage(frame.Data);
+                                reply = JObject.Parse(line);
                             }
-                            catch (Exception ex)
+                            catch (JsonException ex)
                             {
-                                _log.Debug("Kick: ignored malformed chat message: " + ex.Message);
+                                _log.Debug("Kick: ignored malformed realtime frame: " + ex.Message);
                                 continue;
                             }
 
-                            if (message == null)
-                                continue;
+                            if (reply["error"] is JObject error)
+                                throw new InvalidOperationException("Kick realtime error: " +
+                                    (StringValue(error["message"]) ?? error.ToString(Formatting.None)));
 
-                            var count = Interlocked.Increment(ref _messageCount);
-                            if (count <= 5 || count % 100 == 0)
-                                _log.Info($"Kick: received message #{count} (from {message.Author})");
-
-                            MessageReceived?.Invoke(message);
+                            if (reply["connect"] is JObject connect)
+                            {
+                                refreshAtUtc = RefreshTime(connect);
+                            }
+                            else if (reply["refresh"] is JObject refresh)
+                            {
+                                refreshAtUtc = RefreshTime(refresh);
+                            }
+                            else if (reply["subscribe"] != null && TryInt(reply["id"]) == subscribeId)
+                            {
+                                StatusChanged?.Invoke($"Kick: connected to {info.DisplayName} chat");
+                            }
+                            else if (reply["push"] is JObject push)
+                            {
+                                if (push["disconnect"] != null)
+                                    return;
+                                var data = (push["pub"] as JObject)?["data"] as JObject;
+                                var evt = StringValue(data?["event"]);
+                                if (evt != null && IsChatMessageEvent(evt))
+                                    HandleChatMessage(data!["data"]);
+                            }
                         }
                     }
                 }
@@ -285,63 +271,141 @@ namespace SimpleBSStreamChat.Chat.Kick
             }
         }
 
-        private static PusherFrame? ParsePusherFrame(string text)
+        private void HandleChatMessage(JToken? data)
         {
-            using (var reader = new JsonTextReader(new StringReader(text)))
+            ChatMessage? message;
+            try
             {
-                if (!reader.Read() || reader.TokenType != JsonToken.StartObject)
-                    return null;
+                message = ParseChatMessage(data);
+            }
+            catch (Exception ex)
+            {
+                _log.Debug("Kick: ignored malformed chat message: " + ex.Message);
+                return;
+            }
 
-                string? evt = null;
-                JToken? data = null;
-                while (reader.Read())
+            if (message == null)
+                return;
+
+            var count = Interlocked.Increment(ref _messageCount);
+            if (count <= 5 || count % 100 == 0)
+                _log.Info($"Kick: received message #{count} (from {message.Author})");
+
+            MessageReceived?.Invoke(message);
+        }
+
+        private async Task<string> GetRealtimeUrlAsync(KickChannelInfo info, string clientId, CancellationToken ct)
+        {
+            var body = new JObject
+            {
+                ["client"] = new JObject { ["id"] = clientId, ["type"] = "web" },
+                ["capabilities"] = new JObject
                 {
-                    if (reader.TokenType == JsonToken.EndObject)
-                        break;
-                    if (reader.TokenType != JsonToken.PropertyName)
-                    {
-                        reader.Skip();
+                    ["accepted_providers"] = new JArray(new JObject { ["provider"] = "centrifugo" }),
+                },
+            };
+            var response = await PostRealtimeAsync("/channels/" + info.ChannelId + "/chat/connection", body, ct)
+                .ConfigureAwait(false);
+            if ((response?["data"] as JObject)?["connections"] is JArray connections)
+            {
+                foreach (var entry in connections)
+                {
+                    if (!(entry is JObject connection))
                         continue;
-                    }
+                    var url = StringValue((connection["credentials"] as JObject)?["url"]);
+                    if (StringValue(connection["provider"]) == "centrifugo" && url != null &&
+                        url.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+                        return url;
+                }
+            }
 
-                    var name = reader.Value as string;
-                    if (!reader.Read())
-                        break;
+            _log.Debug("Kick: realtime lookup gave no server, using the default");
+            return DefaultRealtimeUrl;
+        }
 
-                    if (string.Equals(name, "event", StringComparison.Ordinal))
+        private async Task<string> GetGuestTokenAsync(string clientId, CancellationToken ct)
+        {
+            var response = await PostRealtimeAsync("/auth/connection", new JObject { ["client_id"] = clientId }, ct)
+                .ConfigureAwait(false);
+            return StringValue((response?["data"] as JObject)?["token"])
+                ?? throw new InvalidOperationException("Kick: no guest token");
+        }
+
+        // POST to Kick's realtime API, falling back to curl.exe like the channel
+        // lookup when Cloudflare turns the game's HttpClient away.
+        private async Task<JObject?> PostRealtimeAsync(string path, JObject body, CancellationToken ct)
+        {
+            var url = RealtimeApi + path;
+            var json = body.ToString(Formatting.None);
+            var allowCurlFallback = true;
+            try
+            {
+                using (var request = new HttpRequestMessage(HttpMethod.Post, url))
+                {
+                    request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                    request.Headers.TryAddWithoutValidation("Accept", "application/json");
+                    request.Headers.TryAddWithoutValidation("Origin", "https://kick.com");
+                    request.Headers.TryAddWithoutValidation("Referer", "https://kick.com/");
+                    using (var response = await _http.SendAsync(request, ct).ConfigureAwait(false))
                     {
-                        evt = reader.TokenType == JsonToken.String
-                            ? reader.Value as string
-                            : JToken.ReadFrom(reader).ToString(Formatting.None);
-                    }
-                    else if (string.Equals(name, "data", StringComparison.Ordinal))
-                    {
-                        data = reader.TokenType == JsonToken.String
-                            ? new JValue(reader.Value as string)
-                            : JToken.ReadFrom(reader);
-                    }
-                    else
-                    {
-                        reader.Skip();
+                        var text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (response.IsSuccessStatusCode && KickChannelResolver.LooksLikeJson(text))
+                            return ParseObject(text);
+
+                        _log.Debug($"Kick: realtime {path} HTTP {(int)response.StatusCode}");
+                        allowCurlFallback = KickChannelResolver.ShouldTryCurlForStatus((int)response.StatusCode) ||
+                            !KickChannelResolver.LooksLikeJson(text);
                     }
                 }
+            }
+            catch (HttpRequestException ex)
+            {
+                _log.Debug($"Kick: realtime {path} failed: " + ex.Message);
+            }
 
-                return string.IsNullOrWhiteSpace(evt) ? null : new PusherFrame(evt!, data);
+            if (!allowCurlFallback)
+                return null;
+            var curlText = await KickChannelResolver.CurlJsonAsync(url, json, "https://kick.com/", "realtime " + path,
+                _log, ct).ConfigureAwait(false);
+            return curlText == null ? null : ParseObject(curlText);
+        }
+
+        private static JObject? ParseObject(string text)
+        {
+            try
+            {
+                return JToken.Parse(text) as JObject;
+            }
+            catch (JsonException)
+            {
+                return null;
             }
         }
 
-        private static async Task SubscribeAsync(ClientWebSocket socket, string channel, CancellationToken ct)
+        // Refresh two minutes early (but no sooner than 30s) when the server
+        // says the token expires.
+        private static DateTime? RefreshTime(JObject reply)
         {
-            var frame = new JObject
-            {
-                ["event"] = "pusher:subscribe",
-                ["data"] = new JObject
-                {
-                    ["auth"] = "",
-                    ["channel"] = channel,
-                },
-            };
-            await SendTextAsync(socket, frame.ToString(Formatting.None), ct).ConfigureAwait(false);
+            if (!IsTrue(reply["expires"]))
+                return null;
+            var ttl = TryInt(reply["ttl"]);
+            return ttl.HasValue ? DateTime.UtcNow.AddSeconds(Math.Max(ttl.Value - 120, 30)) : (DateTime?)null;
+        }
+
+        private static int? TryInt(JToken? token)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+                return null;
+            if (token.Type == JTokenType.Integer)
+                return token.ToObject<int>();
+            return int.TryParse(token.ToString(), out var value) ? value : (int?)null;
+        }
+
+        private static Task SendCommandAsync(ClientWebSocket socket, int id, string command, JObject args,
+            CancellationToken ct)
+        {
+            var frame = new JObject { ["id"] = id, [command] = args };
+            return SendTextAsync(socket, frame.ToString(Formatting.None), ct);
         }
 
         private async Task<string?> ReceiveTextAsync(ClientWebSocket socket, CancellationToken ct)
@@ -596,25 +660,6 @@ namespace SimpleBSStreamChat.Chat.Kick
                 if (value!.Equals(item, StringComparison.OrdinalIgnoreCase))
                     return true;
             return false;
-        }
-
-        private sealed class PusherAppUnavailableException : Exception
-        {
-            public PusherAppUnavailableException(string message) : base(message)
-            {
-            }
-        }
-
-        private sealed class PusherFrame
-        {
-            public PusherFrame(string evt, JToken? data)
-            {
-                Event = evt;
-                Data = data;
-            }
-
-            public string Event { get; }
-            public JToken? Data { get; }
         }
     }
 }

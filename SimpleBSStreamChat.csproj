@@ -10,10 +10,15 @@
     <RootNamespace>SimpleBSStreamChat</RootNamespace>
     <AssemblyName>SimpleBSStreamChat</AssemblyName>
     <Version>1.0.0</Version>
+    <!-- Compile-time reference dir (Managed/Libs/Plugins DLLs the project builds
+         against). Not a deploy destination. Override in Directory.Build.props.user
+         if your reference instance lives elsewhere. -->
     <BeatSaberDir Condition="'$(BeatSaberDir)' == ''">$(MSBuildThisFileDirectory)..\BeatSaber 1.40.8 (MODDED)</BeatSaberDir>
-    <!-- To also copy the built DLL into a BSManager instance, set BSManagerInstanceDir
-         in Directory.Build.props.user (gitignored). No machine-specific path is
-         committed here, so the public project exposes no local username/path. -->
+    <!-- Deploy destinations are @(DeployInstance) items in the gitignored
+         Directory.Build.props.user, so no machine-specific path is committed here. -->
+    <!-- The Quest (C++) port lives in qmod/; keep its huge extern/ and build/
+         trees out of this project's default item globs. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);qmod\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -120,13 +125,15 @@
     </Reference>
   </ItemGroup>
 
-  <Target Name="DeployToBeatSaber" AfterTargets="Build">
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BeatSaberDir)\Plugins" Condition="Exists('$(BeatSaberDir)\Plugins')" />
-    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(BeatSaberDir)\Plugins" Condition="Exists('$(BeatSaberDir)\Plugins') And Exists('$(TargetDir)$(TargetName).pdb')" />
-    <Message Text="Deployed $(TargetName).dll to $(BeatSaberDir)\Plugins" Importance="high" Condition="Exists('$(BeatSaberDir)\Plugins')" />
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BSManagerInstanceDir)\Plugins" Condition="Exists('$(BSManagerInstanceDir)\Plugins')" />
-    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(BSManagerInstanceDir)\Plugins" Condition="Exists('$(BSManagerInstanceDir)\Plugins') And Exists('$(TargetDir)$(TargetName).pdb')" />
-    <Message Text="Deployed $(TargetName).dll to $(BSManagerInstanceDir)\Plugins" Importance="high" Condition="Exists('$(BSManagerInstanceDir)\Plugins')" />
+  <!-- Deploy targets are per-machine and live in Directory.Build.props.user
+       (gitignored) as @(DeployInstance) items — each a full "...\Plugins" folder —
+       so the committed project holds no local paths. Missing folders are skipped;
+       with no items the target does nothing. BeatSaberDir stays the compile-time
+       reference only and is no longer a deploy destination. -->
+  <Target Name="DeployToBeatSaber" AfterTargets="Build" Condition="'@(DeployInstance)' != ''">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="%(DeployInstance.Identity)" Condition="Exists('%(DeployInstance.Identity)')" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="%(DeployInstance.Identity)" Condition="Exists('%(DeployInstance.Identity)') And Exists('$(TargetDir)$(TargetName).pdb')" />
+    <Message Text="Deployed $(TargetName).dll to %(DeployInstance.Identity)" Importance="high" Condition="Exists('%(DeployInstance.Identity)')" />
   </Target>
 
 </Project>

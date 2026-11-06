@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
+using BeatSaberMarkupLanguage;
 using SongCore;
 using SimpleBSStreamChat.UI;
 using UnityEngine.SceneManagement;
@@ -139,7 +140,10 @@ namespace SimpleBSStreamChat.Songs
                 tcs.TrySetResult(new LevelResolveResult(null, "SongCore is already loading songs"));
                 return;
             }
-            if (SceneManager.GetActiveScene().name == "GameCore")
+            // Refuse to refresh SongCore where accepting isn't allowed (a song, the
+            // results screen, or any non-solo flow) — navigation would be refused
+            // there anyway and reloading the pack a live flow references is churn.
+            if (!MenuState.CanAcceptNow())
             {
                 tcs.TrySetResult(new LevelResolveResult(null, "return to menu and accept again"));
                 return;

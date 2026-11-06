@@ -48,11 +48,16 @@ namespace SimpleBSStreamChat.Chat.Requests
         private readonly RequestQueueStorage? _storage;
         private SongRequestPipeline? _pipeline;
         private int _version;
+        // Throttles the opportunistic prune of the cooldown/notice tracking maps.
+        private DateTime _nextPruneUtc = DateTime.MinValue;
         // Cancels in-flight metadata fetches/retries on shutdown.
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         // Caps concurrent BeatSaver metadata lookups so restoring a full queue
         // doesn't fire dozens of requests at once.
         private readonly SemaphoreSlim _metadataGate = new SemaphoreSlim(3, 3);
+        // Thread-safe source of retry-backoff jitter (Random is not thread-safe and
+        // metadata fetches run on concurrent thread-pool continuations).
+        private static readonly Random _jitterRng = new Random();
 
         /// <summary>Raised (off the queue lock) with feedback for the in-game chat panel.</summary>
         public event Action<string>? Notice;
@@ -166,6 +171,14 @@ namespace SimpleBSStreamChat.Chat.Requests
 
                 if (removed != null)
                     _version++;
+
+                // Opportunistically prune long-elapsed cooldown/notice bookkeeping so
+                // these maps don't grow unbounded over a multi-hour stream.
+                if (now >= _nextPruneUtc)
+                {
+                    _nextPruneUtc = now.AddSeconds(60d);
+                    PruneStaleTrackingLocked(now);
+                }
             }
 
             if (removed == null)
@@ -174,6 +187,30 @@ namespace SimpleBSStreamChat.Chat.Requests
             foreach (var request in removed)
                 _beatSaver?.Forget(request.Id);
             PersistQueue();
+        }
+
+        // Called under _lock. Drops cooldown/notice entries whose window has safely
+        // elapsed so they no longer affect any decision — bounding map growth.
+        private void PruneStaleTrackingLocked(DateTime now)
+        {
+            var cooldown = Math.Max(0, _config.PerUserCooldownSeconds);
+            // A 60s floor keeps a 0/short cooldown from letting the map grow forever.
+            RemoveExpired(_lastRequestUtc, now, Math.Max(cooldown, 60));
+            RemoveExpired(_lastNoticeUtc, now, Math.Max(NoticeRateLimitSeconds, 60d));
+        }
+
+        private static void RemoveExpired(Dictionary<string, DateTime> map, DateTime now, double ttlSeconds)
+        {
+            List<string>? expired = null;
+            foreach (var pair in map)
+            {
+                if ((now - pair.Value).TotalSeconds >= ttlSeconds)
+                    (expired ??= new List<string>()).Add(pair.Key);
+            }
+            if (expired == null)
+                return;
+            foreach (var key in expired)
+                map.Remove(key);
         }
 
         /// <summary>Copies the queue into <paramref name="target"/> (cleared first).</summary>
@@ -256,8 +293,12 @@ namespace SimpleBSStreamChat.Chat.Requests
                 if (_queue.Count >= QueueCapacity)
                     return EnqueueResult.QueueFull;
 
+                // A not-found (about to auto-purge) or failed-download entry should
+                // not block someone re-requesting the same key.
                 if (!_config.AllowDuplicates &&
-                    _queue.Exists(r => r.Key.Equals(key, StringComparison.OrdinalIgnoreCase)))
+                    _queue.Exists(r => r.Key.Equals(key, StringComparison.OrdinalIgnoreCase) &&
+                                       r.Status != SongRequestStatus.NotFound &&
+                                       r.Status != SongRequestStatus.Failed))
                     return EnqueueResult.Duplicate;
 
                 if (!trusted && _config.MaxRequestsPerUser > 0)
@@ -302,6 +343,11 @@ namespace SimpleBSStreamChat.Chat.Requests
             {
                 while (!token.IsCancellationRequested)
                 {
+                    // Stop if the request was denied/removed (including during a
+                    // prior backoff delay) before spending another BeatSaver call.
+                    if (!IsInQueue(request.Id))
+                        return;
+
                     MapFetchResult result;
                     await _metadataGate.WaitAsync(token).ConfigureAwait(false);
                     try
@@ -332,11 +378,13 @@ namespace SimpleBSStreamChat.Chat.Requests
                     }
 
                     // Transient error: keep the request and retry with capped
-                    // backoff. Stop if it was denied/removed while we waited.
-                    if (!IsInQueue(request.Id))
-                        return;
+                    // backoff (3,6,12,24,48,48… seconds) plus a little jitter so a
+                    // restored full queue doesn't retry in lockstep. Retrying is
+                    // deliberately unbounded — it self-heals whenever BeatSaver
+                    // recovers, and the streamer can Deny a stuck row meanwhile.
                     attempt++;
-                    var delaySeconds = Math.Min(60, 3 * (1 << Math.Min(attempt - 1, 4))); // 3,6,12,24,48,60…
+                    var baseDelay = Math.Min(48, 3 * (1 << Math.Min(attempt - 1, 4)));
+                    var delaySeconds = baseDelay + NextJitter() * baseDelay * 0.25;
                     UpdateStatus(request.Id, SongRequestStatus.FetchingInfo, "BeatSaver unavailable — retrying");
                     await Task.Delay(TimeSpan.FromSeconds(delaySeconds), token).ConfigureAwait(false);
                 }
@@ -344,6 +392,12 @@ namespace SimpleBSStreamChat.Chat.Requests
             catch (OperationCanceledException)
             {
                 // Shutdown or cancellation: leave the request untouched (preserved).
+            }
+            catch (Exception ex)
+            {
+                // async void: any other escape would be an unobserved exception on a
+                // thread-pool continuation (a hard crash). Log and drop it instead.
+                _log.Warn($"Metadata fetch loop for '{request.Key}' failed: {ex.Message}");
             }
         }
 
@@ -363,6 +417,12 @@ namespace SimpleBSStreamChat.Chat.Requests
                     _beatSaver?.Forget(requestId); // denied while fetching
                     return;
                 }
+                // Only a request still awaiting metadata may be completed. This makes
+                // "a late/stray metadata callback clobbers a Downloading/Installing
+                // row back to Ready" structurally impossible if a re-fetch path is
+                // ever added (today the fetch runs exactly once and is terminal).
+                if (request.Status != SongRequestStatus.FetchingInfo)
+                    return;
                 request.SongName = info.SongName;
                 request.SongAuthorName = info.SongAuthorName;
                 request.LevelAuthorName = info.LevelAuthorName;
@@ -549,6 +609,12 @@ namespace SimpleBSStreamChat.Chat.Requests
         private static string UserKey(SongRequest request) =>
             request.RequesterPlatform + ":" + request.RequesterName.ToLowerInvariant();
 
+        private static double NextJitter()
+        {
+            lock (_jitterRng)
+                return _jitterRng.NextDouble();
+        }
+
         private static DateTime NormalizeUtc(DateTime value)
         {
             if (value == default(DateTime))
@@ -566,16 +632,22 @@ namespace SimpleBSStreamChat.Chat.Requests
         private static string NoticeKey(string kind, SongRequest request) =>
             kind + ":" + UserKey(request);
 
-        public void SaveQueue() => PersistQueue();
+        public void SaveQueue() => PersistQueue(blocking: true);
 
-        /// <summary>Cancels in-flight metadata fetches/retries on plugin exit.</summary>
+        /// <summary>Cancels in-flight metadata fetches/retries on plugin exit and
+        /// releases their synchronization primitives.</summary>
         public void Shutdown()
         {
             try { _lifetime.Cancel(); }
             catch (ObjectDisposedException) { /* already shut down */ }
+            // Cancel first, then dispose. Any fetch still touching these unwinds via
+            // OperationCanceledException (or the async-void catch-all); Dispose on
+            // both types is idempotent.
+            _lifetime.Dispose();
+            _metadataGate.Dispose();
         }
 
-        private void PersistQueue()
+        private void PersistQueue(bool blocking = false)
         {
             var storage = _storage;
             if (storage == null)
@@ -587,13 +659,23 @@ namespace SimpleBSStreamChat.Chat.Requests
             }
 
             List<SongRequest> snapshot;
+            int version;
             lock (_lock)
             {
                 snapshot = new List<SongRequest>(_queue.Count);
                 foreach (var request in _queue)
                     snapshot.Add(request.Snapshot());
+                version = _version;
             }
-            storage.Save(snapshot);
+
+            // Shutdown must finish writing before the process exits; routine saves
+            // move the file I/O off the Unity main thread. Either way the version
+            // stamp makes Save reject any snapshot older than the last one written,
+            // so an out-of-order background completion can't persist a stale queue.
+            if (blocking)
+                storage.Save(snapshot, version);
+            else
+                Task.Run(() => storage.Save(snapshot, version));
         }
 
         private void RaiseNotice(string text, string? rateLimitKey = null)

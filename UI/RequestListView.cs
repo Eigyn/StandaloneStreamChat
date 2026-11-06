@@ -93,6 +93,11 @@ namespace SimpleBSStreamChat.UI
         private float _chatTopSlack;
         private float _contentBottomInset = ChatPanelController.ContentBottomInset;
         private float _contentTopInset = ChatPanelController.ContentTopInset;
+        // Whether accepting a request could actually navigate right now (true only
+        // at the top-level menu). Polled so the Accept button dims the moment a song
+        // starts or a menu screen (incl. the results screen) is opened.
+        private bool _navigationActionable = true;
+        private float _nextActionableCheck;
 
         public GameObject GameObject => _root.gameObject;
 
@@ -215,8 +220,27 @@ namespace SimpleBSStreamChat.UI
                 _lastVersion = version;
                 Rebuild();
             }
+            RefreshActionable();
             UpdateBusyRows();
         }
+
+        // Cheap throttled poll of whether navigation is currently possible.
+        private void RefreshActionable()
+        {
+            if (Time.unscaledTime < _nextActionableCheck)
+                return;
+            _nextActionableCheck = Time.unscaledTime + 0.25f;
+            _navigationActionable = ComputeActionable();
+        }
+
+        // Enabled only where accepting is actually allowed — the main menu and the
+        // solo song list, but NOT the results screen or anywhere else. Shares the one
+        // rule in MenuState with the navigator and refresh so they can't disagree.
+        private static bool ComputeActionable() => Songs.MenuState.CanAcceptNow();
+
+        private bool AcceptEnabled(SongRequest request) =>
+            _navigationActionable &&
+            (request.Status == SongRequestStatus.Ready || request.Status == SongRequestStatus.Failed);
 
         public void SetPanelSize(float panelWidth, float panelHeight,
             float contentBottomInset, float contentTopInset)
@@ -332,16 +356,17 @@ namespace SimpleBSStreamChat.UI
 
         private void Rebuild()
         {
-            string? topRequestId = null;
-            if (_firstVisibleIndex >= 0 && _firstVisibleIndex < _snapshot.Count)
-                topRequestId = _snapshot[_firstVisibleIndex].Id;
-            var previousFirstVisibleIndex = _firstVisibleIndex;
+            // Remember which request sat at the top (from the OLD snapshot) so the
+            // viewport can stay anchored to it across add/remove/auto-purge.
+            string? topRequestId = (_firstVisibleIndex >= 0 && _firstVisibleIndex < _snapshot.Count)
+                ? _snapshot[_firstVisibleIndex].Id
+                : null;
 
             _manager.CopyRequests(_snapshot);
             _rowHeight = RowHeight();
             RefreshViewportGeometry();
 
-            if (!string.IsNullOrEmpty(topRequestId))
+            if (topRequestId != null)
             {
                 for (var i = 0; i < _snapshot.Count; i++)
                 {
@@ -352,35 +377,14 @@ namespace SimpleBSStreamChat.UI
                     }
                 }
             }
-            else
-            {
-                _firstVisibleIndex = previousFirstVisibleIndex;
-            }
 
             while (_rows.Count < _snapshot.Count)
                 _rows.Add(CreateRow());
 
-            for (var i = 0; i < _rows.Count; i++)
-            {
-                var row = _rows[i];
-                if (i < _snapshot.Count)
-                {
-                    var request = _snapshot[i];
-                    row.Current = request;
-                    PositionRow(row, i);
-                    row.Text.text = Format(i + 1, request);
-                    ApplyPlatformIcon(row, request.RequesterPlatform);
-                    ApplyRowState(row, request);
-                }
-                else
-                {
-                    row.Current = null;
-                    if (row.Root.activeSelf)
-                        row.Root.SetActive(false);
-                }
-            }
-
             _emptyLabel.gameObject.SetActive(_snapshot.Count == 0);
+            // ApplyScroll positions, formats, and activates only the on-screen rows
+            // (and deactivates the rest), so a large queue isn't fully re-formatted
+            // on every version bump — e.g. the per-1% bumps during a download.
             ApplyScroll();
         }
 
@@ -404,6 +408,16 @@ namespace SimpleBSStreamChat.UI
             count * _rowHeight + Mathf.Max(0, count - 1) * RowSpacing;
 
         private int MaxFirstVisibleIndex => Mathf.Max(0, _snapshot.Count - _visibleRows);
+
+        private void PopulateRow(RequestRowUi row, int index)
+        {
+            var request = _snapshot[index];
+            row.Current = request;
+            PositionRow(row, index);
+            row.Text.text = Format(index + 1, request);
+            ApplyPlatformIcon(row, request.RequesterPlatform);
+            ApplyRowState(row, request);
+        }
 
         private void PositionRow(RequestRowUi row, int index)
         {
@@ -444,9 +458,14 @@ namespace SimpleBSStreamChat.UI
             var lastVisibleExclusive = Mathf.Min(_snapshot.Count, _firstVisibleIndex + _visibleRows);
             for (var i = 0; i < _rows.Count; i++)
             {
+                var row = _rows[i];
                 var visible = i >= _firstVisibleIndex && i < lastVisibleExclusive;
-                if (_rows[i].Root.activeSelf != visible)
-                    _rows[i].Root.SetActive(visible);
+                if (visible)
+                    PopulateRow(row, i);      // format/position only what's on screen
+                else
+                    row.Current = null;
+                if (row.Root.activeSelf != visible)
+                    row.Root.SetActive(visible);
             }
 
             var overflows = _snapshot.Count > _visibleRows;
@@ -624,8 +643,7 @@ namespace SimpleBSStreamChat.UI
             row.Accept.Root.SetActive(!busy);
             row.Deny.Root.SetActive(!busy);
             row.ProgressRoot.SetActive(busy);
-            SetButtonEnabled(row.Accept, request.Status == SongRequestStatus.Ready ||
-                                          request.Status == SongRequestStatus.Failed);
+            SetButtonEnabled(row.Accept, AcceptEnabled(request));
             SetButtonEnabled(row.Deny, !busy);
             UpdateProgressRing(row, request);
         }
@@ -636,7 +654,17 @@ namespace SimpleBSStreamChat.UI
             {
                 if (!row.Root.activeSelf || row.Current == null)
                     continue;
-                UpdateProgressRing(row, row.Current);
+                var request = row.Current;
+                // Keep the Accept button's enabled state live between rebuilds so it
+                // dims/undims immediately as navigation becomes (im)possible, rather
+                // than only on the next queue-version change.
+                if (row.Accept.Root.activeSelf)
+                {
+                    var enabled = AcceptEnabled(request);
+                    if (row.Accept.Button.interactable != enabled)
+                        SetButtonEnabled(row.Accept, enabled);
+                }
+                UpdateProgressRing(row, request);
             }
         }
 

@@ -51,6 +51,10 @@ namespace SimpleBSStreamChat.UI
             public int FrameIndex;
             public float NextFrameAt;
             public long LastUsed;
+            // The render epoch this emote was last marked visible on. Only
+            // entries matching the current epoch are animated, so emotes from
+            // scrolled-off messages stop costing per-frame work.
+            public int VisibleEpoch = -1;
             public bool Animated => Frames.Length > 1;
         }
 
@@ -107,6 +111,7 @@ namespace SimpleBSStreamChat.UI
         private readonly int[] _emojiProbe = new int[8];
         private long _useCounter;
         private long _evictionCounter;
+        private int _visibleEpoch;
         private bool _tablesDirty;
         private bool _textureDirty;
 
@@ -730,12 +735,31 @@ namespace SimpleBSStreamChat.UI
             inner.X + inner.Width <= outer.X + outer.Width &&
             inner.Y + inner.Height <= outer.Y + outer.Height;
 
+        /// <summary>Begins a new visibility pass; call once per row rebuild before
+        /// <see cref="MarkVisible"/>-ing the emotes in the currently shown rows.</summary>
+        public void BeginVisiblePass()
+        {
+            _visibleEpoch++;
+        }
+
+        /// <summary>Marks an emote as on-screen for the current pass, so it (and only
+        /// it) animates. Emotes not marked this pass stop animating.</summary>
+        public void MarkVisible(string key)
+        {
+            if (!string.IsNullOrEmpty(key) && _entries.TryGetValue(key, out var entry))
+                entry.VisibleEpoch = _visibleEpoch;
+        }
+
         private void AnimateReadyEntries()
         {
             var now = Time.unscaledTime;
             foreach (var entry in _entries.Values)
             {
-                if (entry.State != EntryState.Ready || !entry.Animated || now < entry.NextFrameAt)
+                // Only animate emotes shown in the current rows. Off-screen emotes
+                // (old messages) do zero per-frame work, so cost no longer grows
+                // with the atlas's accumulated animated-emote count.
+                if (entry.State != EntryState.Ready || !entry.Animated ||
+                    entry.VisibleEpoch != _visibleEpoch || now < entry.NextFrameAt)
                     continue;
 
                 var advanced = false;
