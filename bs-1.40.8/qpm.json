@@ -7,7 +7,7 @@
     "name": "StandaloneStreamChat",
     "id": "SimpleBSStreamChat",
     "version": "0.9.4",
-    "url": "https://github.com/Eigyn/SimpleBSStreamChat",
+    "url": "https://github.com/Eigyn/StandaloneStreamChat",
     "additionalData": {
       "overrideSoName": "libSimpleBSStreamChat.so",
       "cmake": true
