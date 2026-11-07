@@ -24,11 +24,6 @@
 !/assets/
 !/assets/*.png
 
-# README screenshot, kept separate from the compiled icon assets.
-!/docs/
-!/docs/images/
-!/docs/images/stream-chat.jpg
-
 # Full upstream licenses and provenance records, including future .txt files.
 !/licenses/
 !/licenses/**

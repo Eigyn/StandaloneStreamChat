@@ -1,112 +1,193 @@
 # StandaloneStreamChat
 
-[![License: MIT-0](https://img.shields.io/badge/license-MIT--0-blue?style=flat-square)](LICENSE)
-[![Version: 0.9.4](https://img.shields.io/badge/version-v0.9.4-brightgreen?style=flat-square)](https://github.com/Eigyn/StandaloneStreamChat/releases)
+Free Twitch, YouTube and Kick stream chat for Beat Saber on Quest, packaged as
+a `.qmod`. No accounts, no relay services.
 
-A free Twitch, YouTube, and Kick stream chat mod for Beat Saber on Quest, packaged as
-a `.qmod`. Currently offered for Quest versions 1.40.8 and 1.45.3
+Formerly SimpleBSStreamChat. The displayed name and release filenames use
+StandaloneStreamChat. The package ID, native library, internal namespaces,
+and saved-file names retain SimpleBSStreamChat so existing installations
+upgrade in place and keep their settings and request queue.
 
-StandaloneStreamChat is inspired by BeatSaberPlus and EnhancedStreamChat. See [Credits](#credits) and [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES) for more information.
-
-> **AI NOTICE**: This mod was made with the use of AI (Claude and Codex) and was **extensively checked and tested** before being released! Because this mod was made with the use of AI, *StandaloneStreamChat is not affiliated with BSMG (Beat Saber Modding Group) or BeatMods.* If you do not mind this disclaimer, here are the features of the mod:
+Builds for **Beat Saber 1.45.3_30054** (Quest 2 / 3S / 3) and for
+**1.40.8_7379** (see [Beat Saber 1.40.8](#beat-saber-1408)).
 
 ## Features
+Twitch, YouTube and Kick chat (text, badges and inline emotes) on a floating
+panel in the menu, with Connections, Appearance, Requests and General settings
+tabs (`include/UI/SettingsBsml.hpp`).
+The lock, move-mode and requests buttons sit in a column outside the panel's
+left edge; their icons (`assets/`) are compiled in as byte arrays that
+`cmake/EmbedAssets.cmake` generates (not `#embed`, which the 1.40.8 build's
+NDK 27 compiler lacks).
+Viewer counts sit in a strip across the top: each chat client polls its own
+platform every 30 s (Twitch web GQL, YouTube InnerTube `updated_metadata`,
+Kick's channel API).
+Each message is its own row (`UI/ChatRow`), with the Highlight Messages
+backdrop. Platform and badge icons and emotes show inline as TMP sprites from a
+runtime 1024x1024 atlas (`UI/EmoteAtlas`): images download on a background
+thread, PNGs decode through Unity, and GIFs through `UI/GifDecoder`. Atlas
+entries referenced by active rows are protected from eviction; when the
+working set cannot fit, the affected emotes remain readable as text.
+Twitch, YouTube and Kick emotes come from the messages;
+BTTV/FFZ/7TV emotes (`Chat/ThirdPartyEmotes`, global plus the Twitch channel's)
+are matched by word. Channel lookup no longer depends on FFZ:
+the Twitch session or public web resource response supplies the channel ID.
+Provider failures retry with backoff, preserving successful data, and the
+resource cache periodically refreshes. Global and channel Twitch badge
+images, YouTube member images and Kick badge images share the same atlas.
 
-- Twitch, YouTube, and Kick chat with live viewer counts and platform icons.
-- Inline emotes and badges, including BTTV, FFZ, and 7TV emotes.
-- Optional animated emotes, off by default to conserve Quest memory.
-- BeatSaver song requests through `!bsr <key>`, with an accept/deny queue, map downloads, and song selection.
-- Request cooldowns, duplicate controls, and an optional persistent queue.
-- Message deletion updates, deleted-message markers, and mention highlights.
-- A movable, lockable panel with adjustable size, curvature, background color, opacity, and text size.
+Message IDs, user IDs and channel identity are retained so Twitch deletions,
+user purges and chat clears update the feed. Single-message deletions retain
+a gray deleted-message marker; user purges and channel clears remove the
+matching rows. YouTube removal actions and
+Kick deletion/ban/clear events use the same ordered history update path.
+Mentions and provider-highlighted messages have distinct background colors;
+cheer amounts and full badge metadata are retained.
 
-## Screenshot
+**Animated Emotes** in General is optional and **off by default**.
+It uses GIF resources where available and retains at most four animations
+and 2 MiB of frame pixels in total, with up to 512 KiB and 128 sampled frames
+per animation. Frame uploads are limited to ten animation updates per second.
+Fast/long clips are sampled to fit; sources beyond the dimension/work budget
+fall back to a static image. Turning the toggle off releases retained frame
+data immediately. The existing atlas stays 1024x1024; animation does not add
+another texture atlas. Temporary decode/transfer buffers are bounded
+separately, so the 2 MiB figure describes retained animation data.
+One downloader handles at most 64 waiting jobs and one completed result,
+preventing decoded images from piling up while Requests or a hidden panel
+pauses consumption.
 
-![StandaloneStreamChat displaying sehria_k's Twitch chat in Beat Saber on Quest](docs/images/stream-chat.jpg)
+Song requests: viewers type `!bsr <key>` (or paste a BeatSaver link after
+`!bsr`); `!request` is not supported. `Requests/SongRequestManager`
+keeps the queue (looked up on BeatSaver by a worker thread, saved to
+`Configs/SimpleBSStreamChat.Requests.json`), and the third side button swaps
+the feed for the request list (`UI/RequestList`, `UI/RequestRow`). Accept is
+available on the main menu and Solo song list, with one active request at a
+time. An installed map goes directly to selection, without downloading or
+refreshing SongCore. Files not yet loaded get one discovery refresh first.
+New downloads unpack on their own thread (`Songs/MapInstaller`,
+`Songs/ZipExtractor`) and install into a new folder identified by the map hash;
+an older loaded version is never overwritten. Selection waits for Solo and
+the song list to settle, switches to All Songs, filters to the exact level,
+and confirms the selected ID before removing the request. Its temporary ID
+filter is released afterward so later searches use the whole library.
+Selection/loading errors retain the installed map with a Select retry, while
+download failures offer a download retry. Leaving Solo during installation
+parks the installed request for another Select press instead of keeping it
+busy indefinitely. The same workflow is used by both builds.
 
-Captured on Quest 3, showing [sehria_k's Twitch channel](https://www.twitch.tv/sehria_k).
+The Appearance tab has a Corners slider: the panel draws its own sliced rounded
+backdrop (`Icons::RoundedPanel`), starting at the rounding BSML's backdrop had.
+
+## Requirements
+- PowerShell 7 (`pwsh`), CMake, Ninja
+- [qpm](https://github.com/QuestPackageManager/QPM.CLI) (`qpm download ninja` installs Ninja)
+- Android NDK **29** (`qpm ndk download 29.0.14206865`). NDK 27 can't build
+  beatsaber-hook 9.x, which needs C++26 `std::span` from a braced list.
+
+## Building
+```
+qpm restore
+qpm s qmod
+```
+`qpm s build` builds only the `.so`. Put your NDK path in `ndkpath.txt`
+(gitignored) if `ANDROID_NDK_HOME` isn't set.
+
+`qpm s qmod` also runs `scripts/package-release.ps1`. It embeds LICENSE,
+THIRD-PARTY-NOTICES and every file in `licenses/` in the QMOD, then creates
+`releases/StandaloneStreamChat-<version>-bs-<game-version>/` and a matching ZIP.
+Each release folder contains the QMOD and the same individual license and
+provenance files. The 1.40.8 build uses the same packaging step after its
+dependency ranges are relaxed. To repackage an existing QMOD without
+compiling, run `pwsh ./scripts/package-release.ps1 -GameVersion 1.45.3`
+(or `1.40.8`).
+
+### Beat Saber 1.40.8
+`bs-1.40.8/` builds the same sources against the 1.40.8 libraries
+(bs-cordl 4008, beatsaber-hook 6.4.2, and the exact 1.40.8 core mods: BSML
+0.4.55, SongCore 1.1.24, custom-types 0.18.3, paper2 4.6.4) into
+`bs-1.40.8/StandaloneStreamChat-1.40.8.qmod`:
+```
+cd bs-1.40.8
+qpm restore
+qpm s qmod
+```
+It needs NDK **27** (`qpm ndk download 27.2.12479018`, path in
+`bs-1.40.8/ndkpath.txt`): beatsaber-hook 6's headers don't compile with NDK 29's
+libc++. beatsaber-hook 6 has no flamingo, so its inline hooker is compiled
+in. Code that differs between the versions lives in `include/Compat.hpp` or
+checks `SBSC_BS_1_40`. `bs-1.40.8/loosen-deps.ps1` then relaxes the packaged
+`mod.json` from those exact versions to `^` ranges, so MBF doesn't try to move
+a library that a player's other mods need newer.
+
+## Notes
+- `tests/RunNativeTests.ps1 -OutputDirectory <folder> -RunOnQuest -AdbPath
+  <adb.exe> -Serial <device>` compiles production chat clients, resource loading,
+  GIF decoding and the bounded download queue into an isolated Android test.
+  Its network transport is simulated; it sends no external chat messages.
+  It covers moderation scope, badge/mention metadata, provider recovery,
+  GIF disposal/interlacing and memory limits, row reference lifetime, and a
+  paused-consumer burst of 1,000 image requests.
+- `libcurl` is pinned to `=8.5.0`: the 8.7.1 archive is missing OpenSSL's
+  `EVP_Encode*`/`EVP_Decode*` objects and fails to link.
+- `flamingo` is pinned to `~1.2.1`, the version the 1.45.3 core mods ship. With
+  `^1.3.0`, MBF upgrades the shared `libflamingo.so` to 1.3.0, and custom-types
+  then aborts at launch ("Failed to mark ptr ... Permission denied"). The crash
+  stays after removing this mod, because MBF leaves the upgraded library behind.
+- The bundled libcurl has neither WebSocket nor gzip support, so
+  `Net/WebSocket` is a small RFC 6455 client on top of the raw TLS stream, and
+  YouTube pages download uncompressed (the `/live` lookup stops reading early).
+- Kick chat now runs on Centrifugo, not Pusher. The client gets the server from
+  `web.kick.com/api/v1/realtime/channels/{id}/chat/connection` and an anonymous
+  guest token from `.../realtime/auth/connection`, then subscribes to
+  `chatrooms.{chatroomId}.v2`.
+- SongCore (`^1.3.5`, a core mod) is a dependency for refreshing songs and
+  finding them by hash. Map zips are unpacked with the system `libz.so`
+  (an NDK stable library), so no zip library is bundled.
+- TLS certificates are verified against the headset's own CA store
+  (`/apex/com.android.conscrypt/cacerts`, then `/system/etc/security/cacerts`).
+- Config:
+  `/sdcard/Android/data/com.beatgames.beatsaber/files/Configs/SimpleBSStreamChat.json`.
 
 ## Credits
+Inspired by [BeatSaberPlus](https://github.com/hardcpp/BeatSaberPlus) and
+[EnhancedStreamChat](https://github.com/brian91292/EnhancedStreamChat).
 
-StandaloneStreamChat builds on the work of the following projects and contributors:
+Built on [BSML](https://github.com/bsq-ports/Quest-BSML),
+[SongCore](https://github.com/raineaeternal/Quest-SongCore),
+[beatsaber-hook, custom-types and paperlog](https://github.com/QuestPackageManager),
+[scotland2](https://github.com/sc2ad/scotland2) and bs-cordl. Emoji draw through
+[UnicodeQuest](https://github.com/Metalit/UnicodeQuest).
 
-### Inspiration and feature references
+Adapted from other mods:
+- All Songs category selection and exact-song filtering (`Songs/LevelNavigator`)
+  adapt [QuestChatPlexSDK-BS v6.4.5](https://github.com/hardcpp/QuestChatPlexSDK-BS/tree/v6.4.5)
+  by HardCPP (MIT).
+- Dragging the panel (`UI/ChatPanel`) follows Quest-BSML's `FloatingScreenHandle`.
+- Opening Solo on a song (`Songs/LevelNavigator`) follows the `SelectLevel`
+  function in [MetaCoreBS](https://github.com/Metalit/MetaCoreBS).
 
-- **[BeatSaberPlus](https://github.com/hardcpp/BeatSaberPlus), by HardCPP:**
-  its chat and Song Requests workflows informed the comparison and improvements
-  to request installation, queue handling, and map selection. The specific
-  adapted filtering code comes from QuestChatPlexSDK-BS, credited below.
-- **[EnhancedStreamChat](https://github.com/brian91292/EnhancedStreamChat), by brian91292:**
-  served as a behavior reference for moderation updates, deleted-message
-  placeholders, badges, Bits information, mention highlights, and animated
-  emotes. Its C# rendering and animation implementations were not imported
-  into the Standalone chat improvements.
-- **[CatCore](https://github.com/ErisApps/CatCore), by ErisApps and contributors:**
-  provided a reference for Twitch IRC protocol handling.
-- **[SongDownloader](https://github.com/darknight1050/SongDownloader), by darknight1050 and contributors:**
-  provided references for map downloading and installation-folder naming.
+Quest-BSML's and MetaCoreBS's licenses could not be verified from the inspected
+upstream source. They are attributed in THIRD-PARTY-NOTICES and the individual
+NOTICE files without assigning them an assumed license.
 
-### Adapted source code
+Used as references only, with no code copied:
+- [CatCore](https://github.com/ErisApps/CatCore) for Twitch IRC protocol details.
+- [SongDownloader](https://github.com/darknight1050/SongDownloader) for map
+  downloads and folder naming.
 
-- **[QuestChatPlexSDK-BS](https://github.com/hardcpp/QuestChatPlexSDK-BS), by HardCPP:**
-  the All Songs category-switching and exact-level-ID filtering in
-  `src/Songs/LevelNavigator.cpp` adapt the SDK's `LevelSelection.cpp`
-  implementation from v6.4.5. Its non-overwriting installation logic was also
-  consulted when improving destination handling. The upstream MIT notice is
-  retained in [LICENSE.QuestChatPlexSDK-BS](licenses/LICENSE.QuestChatPlexSDK-BS).
-- **[Quest-BSML](https://github.com/bsq-ports/Quest-BSML), by RedBrumbler and contributors:**
-  provides the markup, controls, and floating-screen components used by the
-  panel and settings UI. Panel grab/movement math in `src/UI/ChatPanel.cpp`
-  follows its `FloatingScreenHandle` implementation. Attribution and the
-  unverified upstream license status are recorded in
-  [NOTICE.Quest-BSML](licenses/NOTICE.Quest-BSML).
-- **[MetaCoreBS](https://github.com/Metalit/MetaCoreBS), by Metalit and contributors:**
-  the sequence for opening Solo with a selected song in
-  `src/Songs/LevelNavigator.cpp` follows `MetaCore::Songs::SelectLevel`.
-  Attribution and the unverified upstream license status are recorded in
-  [NOTICE.MetaCoreBS](licenses/NOTICE.MetaCoreBS).
+Compiled into the mod:
+- [libcurl](https://curl.se/) 8.5.0, rapidjson and fmt.
+- OpenSSL 1.1.1w, through libcurl. This product includes software developed by
+  the OpenSSL Project for use in the OpenSSL Toolkit (http://www.openssl.org/).
+  This product includes cryptographic software written by Eric Young
+  (eay@cryptsoft.com).
+- [And64InlineHook](https://github.com/Rprop/And64InlineHook) (MIT), in the
+  1.40.8 build only.
 
-### Quest libraries and development tools
-
-- **[SongCore](https://github.com/raineaeternal/Quest-SongCore):**
-  loads and discovers custom maps, resolves requested maps by hash, and
-  refreshes the custom-song library after installation.
-- **[UnicodeQuest](https://github.com/Metalit/UnicodeQuest), by Metalit:**
-  supplies Unicode font support used to display emoji.
-- **[beatsaber-hook](https://github.com/QuestPackageManager/beatsaber-hook):**
-  provides the native hook infrastructure used to initialize the panel from
-  Beat Saber's menu lifecycle.
-- **[custom-types](https://github.com/QuestPackageManager/Il2CppQuestTypePatching):**
-  registers the mod's custom Unity/IL2CPP components, including chat rows,
-  request rows, and settings hosts.
-- **[paperlog](https://github.com/Fernthedev/paperlog):**
-  provides structured logging for connection, download, and runtime diagnostics.
-- **[Scotland2](https://github.com/sc2ad/scotland2):**
-  loads the native Quest mod and provides its loader lifecycle.
-- **bs-cordl and the [QuestPackageManager](https://github.com/QuestPackageManager) contributors:**
-  provide C++ bindings for Beat Saber's IL2CPP types and the dependency/build
-  tooling used by both supported game-version targets.
-
-### Bundled third-party libraries
-
-These libraries or their headers are compiled into the mod. Their individual
-license files are included inside the QMOD and alongside it in release ZIPs.
-
-| Library | Contribution | License text |
-| --- | --- | --- |
-| [libcurl](https://curl.se/) 8.5.0 | HTTP transfers and the connection transport used by the chat clients and map downloader. | [curl license](licenses/LICENSE.libcurl) |
-| [OpenSSL](https://www.openssl.org/) 1.1.1w | TLS support within the bundled libcurl build. | [OpenSSL and SSLeay licenses](licenses/LICENSE.OpenSSL) |
-| [RapidJSON](https://github.com/Tencent/rapidjson) | JSON parsing and serialization for provider responses, settings, and request storage. | [Upstream notices](licenses/LICENSE.RapidJSON) |
-| [fmt](https://github.com/fmtlib/fmt) | Text formatting used throughout the native implementation. | [MIT license and exception](licenses/LICENSE.fmt) |
-| [utfcpp](https://github.com/nemtrif/utfcpp), by Nemanja Trifunovic and contributors | UTF-8 utilities supplied through the logging dependency. | [Boost Software License](licenses/LICENSE.utfcpp) |
-| [And64InlineHook](https://github.com/Rprop/And64InlineHook), by Rprop | Inline hooking compiled into the 1.40.8 build. | [MIT notice from the compiled source](licenses/LICENSE.And64InlineHook) |
-
-### Services and community content
-
-[BeatSaver](https://beatsaver.com/) and its map creators supply the metadata
-and custom maps used by Song Requests. Emote and badge images come from their
-respective platforms and the BTTV, FFZ, and 7TV communities.
-
-StandaloneStreamChat code is [MIT-0](LICENSE) licensed. Third-party code retains its upstream
-terms. Full attribution, source provenance, and licensing status are documented
-in [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES) and [licenses/](licenses/).
+## License
+Eigyn's own code is licensed under **MIT-0 (MIT No Attribution)**, see
+[LICENSE](LICENSE). Third-party code retains its upstream terms and is
+excluded from that relicensing. Third-party terms and unresolved provenance
+entries are documented in [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES) and [licenses/](licenses/).
+The release packaging includes those files beside the QMOD and inside it.
