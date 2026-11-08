@@ -72,7 +72,28 @@ namespace SimpleBSStreamChat::Requests {
             return text;
         }
 
-        std::string UserKey(ChatPlatform platform, std::string const& name) { return std::string(PlatformName(platform)) + ":" + Lower(name); }
+        // Cooldowns and per-viewer caps follow the platform's user id when there
+        // is one: YouTube display names aren't unique, and a rename shouldn't
+        // reset a limit. The display name is the fallback.
+        std::string UserKey(ChatPlatform platform, std::string const& id, std::string const& name) {
+            return std::string(PlatformName(platform)) + (id.empty() ? ":name:" + Lower(name) : ":id:" + id);
+        }
+        std::string UserKey(ChatMessage const& message) { return UserKey(message.platform, message.userId, message.author); }
+        std::string UserKey(SongRequest const& request) { return UserKey(request.platform, request.requesterId, request.requester); }
+
+        // A request restored from a queue saved before 0.10.0 has no id, so it
+        // matches by name.
+        bool SameRequester(SongRequest const& request, ChatMessage const& message) {
+            if (request.platform != message.platform)
+                return false;
+            if (!request.requesterId.empty() && !message.userId.empty())
+                return request.requesterId == message.userId;
+            return Lower(request.requester) == Lower(message.author);
+        }
+
+        // Main-thread wording for an install that refreshed but didn't load.
+        constexpr std::string_view CouldNotLoad = "SongCore couldn't load this map version";
+        constexpr std::string_view RetryFreshCopy = "installed copy didn't load; Accept downloads it again";
 
         bool Allowed(ChatMessage const& message) {
             switch (GetConfig().whoCanRequest) {
@@ -128,28 +149,20 @@ namespace SimpleBSStreamChat::Requests {
                 writer.String(request.key.c_str(), request.key.size());
                 writer.Key("RequesterName");
                 writer.String(request.requester.c_str(), request.requester.size());
+                if (!request.requesterId.empty()) {
+                    writer.Key("RequesterId");
+                    writer.String(request.requesterId.c_str(), request.requesterId.size());
+                }
                 writer.Key("RequesterPlatform");
                 writer.String(platform.data(), platform.size());
                 writer.EndObject();
             }
             writer.EndArray();
 
-            auto path = StoredQueuePath();
-            auto temp = path;
-            temp += ".tmp";
-            std::error_code ec;
-            std::filesystem::create_directories(path.parent_path(), ec);
-            std::ofstream file(temp, std::ios::binary | std::ios::trunc);
-            file.write(buffer.GetString(), static_cast<std::streamsize>(buffer.GetSize()));
-            file.close();
-            if (file.fail()) {
-                WARNING("Could not save the request queue to {}", temp.string());
-                return;
-            }
             // Swapped in whole, so a crash mid-save keeps the last good queue.
-            std::filesystem::rename(temp, path, ec);
-            if (ec)
-                WARNING("Could not save the request queue: {}", ec.message());
+            auto path = StoredQueuePath();
+            if (!WriteFileReplacing(path, {buffer.GetString(), buffer.GetSize()}))
+                WARNING("Could not save the request queue to {}", path.string());
         }
     }
 
@@ -166,8 +179,11 @@ namespace SimpleBSStreamChat::Requests {
             _stopping = true;
         }
         _wake.notify_all();
+        _saveWake.notify_all();
         if (_worker.joinable())
             _worker.join();
+        if (_saver.joinable())
+            _saver.join();  // after writing any save still pending
         _installer.reset();
     }
 
@@ -177,6 +193,7 @@ namespace SimpleBSStreamChat::Requests {
         LoadStored();
         _installer = std::make_unique<Songs::MapInstaller>([this](int64_t id, float fraction) { SetProgress(id, fraction); });
         _worker = std::thread(&SongRequestManager::RunWorker, this);
+        _saver = std::thread(&SongRequestManager::RunSaver, this);
     }
 
     void SongRequestManager::LoadStored() {
@@ -204,6 +221,7 @@ namespace SimpleBSStreamChat::Requests {
             auto key = Lower(Json::Scalar(Json::Get(&item, "Key")));
             key.erase(0, std::min(key.find_first_not_of('0'), key.size()));
             auto requester = Json::Scalar(Json::Get(&item, "RequesterName"));
+            auto requesterId = Json::Scalar(Json::Get(&item, "RequesterId"));  // absent before 0.10.0
             auto platform = PlatformFromName(Json::Scalar(Json::Get(&item, "RequesterPlatform")));
             if (!IsValidKey(key) || requester.empty() || !platform)
                 continue;
@@ -213,6 +231,7 @@ namespace SimpleBSStreamChat::Requests {
             entry.request.id = ++_nextId;
             entry.request.key = std::move(key);
             entry.request.requester = std::move(requester);
+            entry.request.requesterId = std::move(requesterId);
             entry.request.platform = *platform;
             entry.nextLookup = Clock::now();
             _queue.push_back(std::move(entry));
@@ -230,7 +249,7 @@ namespace SimpleBSStreamChat::Requests {
         if (!command.isCommand)
             return;
 
-        auto user = UserKey(message.platform, message.author);
+        auto user = UserKey(message);
         auto mention = "@" + message.author;
         std::lock_guard lock(_lock);
         if (command.key.empty()) {
@@ -266,12 +285,12 @@ namespace SimpleBSStreamChat::Requests {
         if (!Allowed(message))
             return Enqueue::NotAllowed;
 
-        auto user = UserKey(message.platform, message.author);
+        auto user = UserKey(message);
         // The broadcaster and mods run the queue: never throttle or cap them
         // (which also keeps solo testing from tripping the limits).
         bool trusted = message.isBroadcaster || message.isModerator;
         auto now = Clock::now();
-        auto cooldown = std::chrono::seconds(std::max(0, config.perUserCooldownSeconds));
+        auto cooldown = std::chrono::seconds(std::max(0, config.perUserCooldownSeconds.Get()));
         if (auto last = _lastRequest.find(user); !trusted && cooldown > 0s && last != _lastRequest.end() && now - last->second < cooldown)
             return Enqueue::OnCooldown;
         if (_queue.size() >= QueueCapacity)
@@ -282,7 +301,7 @@ namespace SimpleBSStreamChat::Requests {
             }))
             return Enqueue::Duplicate;
         if (!trusted && config.maxRequestsPerUser > 0) {
-            auto mine = std::count_if(_queue.begin(), _queue.end(), [&](Entry const& e) { return UserKey(e.request.platform, e.request.requester) == user; });
+            auto mine = std::count_if(_queue.begin(), _queue.end(), [&](Entry const& e) { return SameRequester(e.request, message); });
             if (mine >= config.maxRequestsPerUser)
                 return Enqueue::TooManyPerUser;
         }
@@ -291,6 +310,7 @@ namespace SimpleBSStreamChat::Requests {
         entry.request.id = ++_nextId;
         entry.request.key = key;
         entry.request.requester = message.author;
+        entry.request.requesterId = message.userId;
         entry.request.platform = message.platform;
         entry.nextLookup = now;
         _queue.push_back(std::move(entry));
@@ -322,8 +342,10 @@ namespace SimpleBSStreamChat::Requests {
 
     void SongRequestManager::ChangedLocked(bool save) {
         _version++;
-        if (save)
+        if (save) {
             _saveDue = true;
+            _saveWake.notify_one();
+        }
         _wake.notify_one();
     }
 
@@ -347,37 +369,44 @@ namespace SimpleBSStreamChat::Requests {
     }
 
     void SongRequestManager::PersistSettingChanged() {
+        // The saver writes or deletes by the setting's value when it runs, so
+        // toggling off and on again before it wakes still ends with a save.
         std::lock_guard lock(_lock);
-        if (GetConfig().persistRequestQueue)
-            _saveDue = true;
-        else
-            _deleteStored = true;
-        _wake.notify_one();
+        _saveDue = true;
+        _saveWake.notify_one();
+    }
+
+    void SongRequestManager::RunSaver() {
+        std::unique_lock lock(_lock);
+        while (true) {
+            _saveWake.wait(lock, [this] { return _saveDue || _stopping; });
+            if (!_saveDue)
+                return;  // stopping, nothing left to write
+            _saveDue = false;
+            bool remove = !GetConfig().persistRequestQueue;
+            std::vector<SongRequest> requests;
+            if (!remove) {
+                for (auto const& entry : _queue) {
+                    if (entry.request.status != RequestStatus::NotFound)
+                        requests.push_back(entry.request);
+                }
+            }
+            lock.unlock();
+            if (remove)
+                DeleteStored();
+            else
+                WriteStored(requests);
+            lock.lock();
+        }
     }
 
     void SongRequestManager::RunWorker() {
-        Net::HttpClient http(_stopping);
+        // The lookup picks what gets downloaded, so it needs a verified server.
+        Net::HttpClient http(_stopping, Net::TlsTrust::Required);
         std::unique_lock lock(_lock);
         while (!_stopping) {
             auto now = Clock::now();
             PruneLocked(now);
-
-            if (_saveDue || _deleteStored) {
-                bool remove = _deleteStored || !GetConfig().persistRequestQueue;
-                _saveDue = _deleteStored = false;
-                std::vector<SongRequest> requests;
-                for (auto const& entry : _queue) {
-                    if (!remove && entry.request.status != RequestStatus::NotFound)
-                        requests.push_back(entry.request);
-                }
-                lock.unlock();
-                if (remove)
-                    DeleteStored();
-                else
-                    WriteStored(requests);
-                lock.lock();
-                continue;
-            }
 
             // One lookup at a time, so a restored full queue doesn't burst BeatSaver.
             auto wakeAt = now + 1min;
@@ -430,7 +459,7 @@ namespace SimpleBSStreamChat::Requests {
                 entry->dropAt = Clock::now() + NotFoundLinger;
                 ChangedLocked(true);
                 NoticeLocked("@" + request.requester + " couldn't find map " + request.key + " on BeatSaver.",
-                             "not-found:" + UserKey(request.platform, request.requester) + ":" + request.key);
+                             "not-found:" + UserKey(request) + ":" + request.key);
                 break;
             case LookupOutcome::Error: {
                 // Retried without limit, backing off 3, 6, 12, 24, 48, 48... s
@@ -460,7 +489,7 @@ namespace SimpleBSStreamChat::Requests {
         if (now < _nextPrune)
             return;
         _nextPrune = now + 1min;
-        auto keep = std::max<Clock::duration>(std::chrono::seconds(std::max(0, GetConfig().perUserCooldownSeconds)), 1min);
+        auto keep = std::max<Clock::duration>(std::chrono::seconds(std::max(0, GetConfig().perUserCooldownSeconds.Get())), 1min);
         std::erase_if(_lastRequest, [&](auto const& item) { return now - item.second >= keep; });
         std::erase_if(_lastNotice, [&](auto const& item) { return now - item.second >= 1min; });
     }
@@ -476,7 +505,6 @@ namespace SimpleBSStreamChat::Requests {
         for (auto& entry : _queue) {
             if (entry.request.status == RequestStatus::Ready && !entry.request.hash.empty() &&
                 SongCore::API::Loading::GetLevelByHash(entry.request.hash)) {
-                entry.filesInstalled = true;
                 entry.request.status = RequestStatus::Installed;
                 entry.request.detail.clear();
                 ChangedLocked(false);
@@ -529,10 +557,16 @@ namespace SimpleBSStreamChat::Requests {
         ChangedLocked(false);
     }
 
-    void SongRequestManager::RememberInstalled(int64_t id) {
+    void SongRequestManager::RememberInstalled(int64_t id, std::filesystem::path const& folder) {
         std::lock_guard lock(_lock);
         if (auto entry = FindLocked(id))
-            entry->filesInstalled = true;
+            entry->installedFolder = folder;
+    }
+
+    void SongRequestManager::RememberLoadFailure(int64_t id, LoadFailure failure) {
+        std::lock_guard lock(_lock);
+        if (auto entry = FindLocked(id))
+            entry->loadFailure = failure;
     }
 
     void SongRequestManager::SetProgress(int64_t id, float fraction) {
@@ -578,20 +612,22 @@ namespace SimpleBSStreamChat::Requests {
 
     void SongRequestManager::Begin(int64_t id) {
         SongRequest request;
-        bool filesInstalled;
+        std::filesystem::path installedFolder;
+        LoadFailure failure;
         {
             std::lock_guard lock(_lock);
             auto entry = FindLocked(id);
             if (!entry || entry->request.status != RequestStatus::Preparing)
                 return;
             request = entry->request;
-            filesInstalled = entry->filesInstalled;
+            installedFolder = entry->installedFolder;
+            failure = entry->loadFailure;
         }
         _install = Install{};
         _install->id = id;
         _install->hash = request.hash;
         _install->url = request.downloadUrl;
-        _install->filesInstalled = filesInstalled;
+        _install->previousFailure = failure;
         if (request.hash.empty()) {
             FinishInstall(RequestStatus::Failed, "missing map hash");
             return;
@@ -600,15 +636,21 @@ namespace SimpleBSStreamChat::Requests {
         auto legacy = root / FolderName(request);
         // Hash is part of the path: a different loaded version is never overwritten.
         _install->folder = root / (FolderName(request) + " [" + request.hash + "]");
-        _install->filesInstalled |= Songs::MapInstaller::HasMapFiles(_install->folder);
-        _install->probeExisting = Songs::MapInstaller::HasMapFiles(legacy);
+        // Files on disk are checked every time, so a folder deleted since the
+        // last Accept is downloaded again. After existing files failed to load,
+        // they are skipped and a fresh copy is downloaded beside them.
+        if (failure == LoadFailure::None) {
+            _install->filesInstalled = (!installedFolder.empty() && Songs::MapInstaller::HasMapFiles(installedFolder)) ||
+                                       Songs::MapInstaller::HasMapFiles(_install->folder);
+            _install->probeExisting = Songs::MapInstaller::HasMapFiles(legacy);
+        }
         _install->deadline = Now() + RefreshTimeout;
     }
 
     void SongRequestManager::BeginOpening(float now) {
         auto& install = *_install;
         install.filesInstalled = true;
-        RememberInstalled(install.id);
+        RememberLoadFailure(install.id, LoadFailure::None);
         install.stage = Stage::Opening;
         install.openAfter = now + SongListSettle;
         install.deadline = now + SongListTimeout;
@@ -655,6 +697,10 @@ namespace SimpleBSStreamChat::Requests {
                 if (SongCore::API::Loading::GetLevelByHash(install.hash)) {
                     INFO("Requested hash {} is already loaded; skipping download and refresh", install.hash);
                     BeginOpening(now);
+                } else if (install.previousFailure == LoadFailure::DownloadedCopy) {
+                    // A fresh download already failed to load; another refresh
+                    // or download would only repeat that.
+                    FinishInstall(RequestStatus::Failed, std::string(CouldNotLoad));
                 } else if (install.filesInstalled || (install.probeExisting && !install.existingChecked)) {
                     install.existingChecked = true;
                     install.stage = Stage::WaitingForRefresh;
@@ -674,7 +720,8 @@ namespace SimpleBSStreamChat::Requests {
                     return;
                 }
                 install.filesInstalled = true;
-                RememberInstalled(id);
+                install.downloaded = true;
+                RememberInstalled(id, install.folder);
                 install.stage = Stage::WaitingForRefresh;
                 install.deadline = now + RefreshTimeout;
                 SetStatus(id, RequestStatus::Installing, "loading installed files");
@@ -721,8 +768,17 @@ namespace SimpleBSStreamChat::Requests {
                     // An occupied legacy path may contain another map version.
                     // Download this hash to a new path after the one discovery refresh.
                     StartDownload(now);
+                } else if (install.downloaded) {
+                    // Our own fresh copy: SongCore can't load it, or loads it
+                    // under another hash. Retrying wouldn't change that.
+                    WARNING("SongCore refreshed without loading downloaded hash {}", install.hash);
+                    RememberLoadFailure(id, LoadFailure::DownloadedCopy);
+                    FinishInstall(RequestStatus::Failed, std::string(CouldNotLoad));
                 } else {
-                    FinishInstall(RequestStatus::Installed, "loading failed; select again");
+                    // An older or damaged copy; the next Accept downloads a fresh one.
+                    WARNING("SongCore refreshed without loading installed hash {}", install.hash);
+                    RememberLoadFailure(id, LoadFailure::ExistingCopy);
+                    FinishInstall(RequestStatus::Failed, std::string(RetryFreshCopy));
                 }
                 return;
 

@@ -60,8 +60,8 @@ namespace {
         Chat::ChatManager::Instance().RestartPlatform(platform, false);
     }
 
-    template <typename T>
-    void SetAppearance(T Config::*field, T value) {
+    template <typename T, typename V>
+    void SetAppearance(T Config::*field, V value) {
         GetConfig().*field = value;
         ScheduleSave();
         ChatPanel::ApplyConfig();

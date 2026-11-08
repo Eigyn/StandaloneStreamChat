@@ -13,9 +13,7 @@ namespace SimpleBSStreamChat {
     namespace {
         Config config;
 
-        std::filesystem::path ConfigPath() {
-            return modloader::get_external_dir() / "Configs" / (MOD_ID ".json");
-        }
+        std::filesystem::path ConfigPath() { return ConfigDirectory() / (MOD_ID ".json"); }
 
         void Read(rapidjson::Value const& obj, char const* key, std::string& out) {
             auto it = obj.FindMember(key);
@@ -40,9 +38,41 @@ namespace SimpleBSStreamChat {
             if (it != obj.MemberEnd() && it->value.IsInt())
                 out = it->value.GetInt();
         }
+
+        template <typename T>
+        void Read(rapidjson::Value const& obj, char const* key, Shared<T>& out) {
+            T value = out;
+            Read(obj, key, value);
+            out = value;
+        }
     }
 
     Config& GetConfig() { return config; }
+
+    std::filesystem::path ConfigDirectory() { return modloader::get_external_dir() / "Configs"; }
+
+    bool WriteFileReplacing(std::filesystem::path const& path, std::string_view contents) {
+        std::error_code ec;
+        std::filesystem::create_directories(path.parent_path(), ec);
+        auto temp = path;
+        temp += ".tmp";
+        {
+            std::ofstream file(temp, std::ios::binary | std::ios::trunc);
+            file.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+            file.close();
+            if (!file) {
+                std::filesystem::remove(temp, ec);
+                return false;
+            }
+        }
+        std::filesystem::rename(temp, path, ec);
+        if (ec) {
+            std::error_code ignored;
+            std::filesystem::remove(temp, ignored);
+            return false;
+        }
+        return true;
+    }
 
     void LoadConfig() {
         auto path = ConfigPath();
@@ -54,11 +84,20 @@ namespace SimpleBSStreamChat {
         }
 
         std::string json((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        file.close();
         rapidjson::Document doc;
         doc.Parse(json.c_str(), json.size());
         if (doc.HasParseError() || !doc.IsObject()) {
-            // Keep the broken file untouched so the user can fix it; run on defaults.
-            ERROR("Config {} is not valid JSON, using defaults", path.string());
+            // Move the broken file aside so the next save can't overwrite it;
+            // the user can still fix it and rename it back. Run on defaults.
+            auto aside = path;
+            aside += ".unreadable";
+            std::error_code ec;
+            std::filesystem::rename(path, aside, ec);
+            if (ec)
+                ERROR("Config {} is not valid JSON and could not be moved aside ({}), using defaults", path.string(), ec.message());
+            else
+                ERROR("Config {} is not valid JSON; moved it to {} and using defaults", path.string(), aside.string());
             return;
         }
 
@@ -143,13 +182,7 @@ namespace SimpleBSStreamChat {
         writer.EndObject();
 
         auto path = ConfigPath();
-        std::error_code ec;
-        std::filesystem::create_directories(path.parent_path(), ec);
-        std::ofstream file(path, std::ios::binary | std::ios::trunc);
-        if (!file) {
+        if (!WriteFileReplacing(path, {buffer.GetString(), buffer.GetSize()}))
             ERROR("Could not write config {}", path.string());
-            return;
-        }
-        file.write(buffer.GetString(), static_cast<std::streamsize>(buffer.GetSize()));
     }
 }

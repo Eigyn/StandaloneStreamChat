@@ -160,35 +160,25 @@ namespace SimpleBSStreamChat::Chat {
                 }
             }
             pending.erase(0, lineStart);
-
-            if (ViewerPollDue())
-                UpdateViewers();
         }
     }
 
     // Twitch's public web GQL endpoint with the website's own client id (no
     // user login).
-    void TwitchIrcClient::UpdateViewers() {
+    std::optional<int> TwitchIrcClient::FetchViewers(Net::HttpClient& http) {
         constexpr char const* ClientIdHeader = "Client-Id: kimne78kx3ncx6brgo4mv6wki5h1ko";
         auto body = std::string(R"({"query":"query($login: String!) { user(login: $login) { stream { viewersCount } } }","variables":{"login":)") +
                     Json::Quote(_channel) + "}}";
-        try {
-            if (!_http)
-                _http = std::make_unique<Net::HttpClient>(_stopping);
-            auto response = _http->PostJson("https://gql.twitch.tv/gql", body, {ClientIdHeader});
-            if (!response.Ok()) {
-                DEBUG("Twitch: viewer count HTTP {}", response.status);
-                return;
-            }
-            rapidjson::Document doc;
-            doc.Parse(response.body.c_str(), response.body.size());
-            // user is null for an unknown channel, stream is null when offline.
-            auto count = doc.HasParseError() ? std::string() : Json::Scalar(Json::Path(&doc, {"data", "user", "stream", "viewersCount"}));
-            _viewers = count.empty() ? -1 : std::atoi(count.c_str());
-        } catch (std::exception const& ex) {
-            if (!_stopping)
-                DEBUG("Twitch: viewer count failed: {}", ex.what());
+        auto response = http.PostJson("https://gql.twitch.tv/gql", body, {ClientIdHeader});
+        if (!response.Ok()) {
+            DEBUG("Twitch: viewer count HTTP {}", response.status);
+            return std::nullopt;
         }
+        rapidjson::Document doc;
+        doc.Parse(response.body.c_str(), response.body.size());
+        // user is null for an unknown channel, stream is null when offline.
+        auto count = doc.HasParseError() ? std::string() : Json::Scalar(Json::Path(&doc, {"data", "user", "stream", "viewersCount"}));
+        return count.empty() ? -1 : std::atoi(count.c_str());
     }
 
     void TwitchIrcClient::HandlePrivmsg(IrcMessage const& message) {

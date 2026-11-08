@@ -175,7 +175,8 @@ namespace SimpleBSStreamChat::Songs {
     }
 
     void MapInstaller::Download(std::string const& url, int64_t id, std::string& body) {
-        CURL* curl = Net::NewEasyHandle(_stopping);
+        // A map is written to disk, so never accept an unverified server.
+        CURL* curl = Net::NewEasyHandle(_stopping, Net::TlsTrust::Required);
         curl_slist* headers = curl_slist_append(nullptr, Requests::UserAgentHeader().c_str());
         struct Cleanup {
             CURL* curl;

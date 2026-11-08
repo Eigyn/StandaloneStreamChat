@@ -5,13 +5,20 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <string>
 #include <thread>
 
+namespace SimpleBSStreamChat::Net {
+    class HttpClient;
+}
+
 namespace SimpleBSStreamChat::Chat {
     /// One platform's chat connection, run on its own background thread.
-    /// Callbacks fire on that thread. Subclasses must call Stop() in their
-    /// destructor, before their own members go away.
+    /// Callbacks fire on that thread. The viewer count is polled on a second
+    /// thread, so a slow count request never holds up chat or keepalive
+    /// replies. Subclasses must call Stop() in their destructor, before their
+    /// own members go away.
     class ChatService {
        public:
         using MessageHandler = std::function<void(ChatMessage)>;
@@ -36,11 +43,13 @@ namespace SimpleBSStreamChat::Chat {
         ChatService(MessageHandler onMessage, StatusHandler onStatus);
 
         virtual void Run() = 0;
+        /// One viewer-count request, on the viewer thread: right away, then
+        /// every 30 s while counts are shown. Returns the count, -1 when
+        /// offline or unknown, or nothing to keep the last count (a transient
+        /// error). May throw.
+        virtual std::optional<int> FetchViewers(Net::HttpClient& http) = 0;
         /// Sleeps in short slices; returns false if asked to stop meanwhile.
         bool SleepFor(std::chrono::milliseconds duration) const;
-        /// True right away, then at most every 30 s, while viewer counts are
-        /// shown; the run loops refresh _viewers between chat reads with it.
-        bool ViewerPollDue();
 
         std::atomic<bool> _stopping{false};
         std::atomic<int> _viewers{-1};
@@ -48,7 +57,9 @@ namespace SimpleBSStreamChat::Chat {
         StatusHandler _onStatus;
 
        private:
+        void RunViewers();
+
         std::thread _thread;
-        std::chrono::steady_clock::time_point _nextViewerPoll{};
+        std::thread _viewerThread;
     };
 }

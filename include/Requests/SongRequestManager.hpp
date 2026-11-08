@@ -29,7 +29,8 @@ namespace SimpleBSStreamChat::Requests {
 
     /// The song-request queue. "!bsr" commands arrive on the chat threads; a
     /// worker thread looks each map up on BeatSaver (retrying while it's
-    /// unreachable), drops unknown keys after a while and saves the queue.
+    /// unreachable) and drops unknown keys after a while, and a saver thread
+    /// keeps the stored queue current.
     /// The UI polls Version() and copies a Snapshot() when it changes, as with
     /// ChatManager.
     ///
@@ -64,12 +65,22 @@ namespace SimpleBSStreamChat::Requests {
        private:
         using Clock = std::chrono::steady_clock;
 
+        /// Installed files that SongCore refreshed without loading the hash.
+        /// ExistingCopy: files from before this Accept (an older or damaged
+        /// copy), so the next Accept downloads a fresh one. DownloadedCopy: our
+        /// own fresh download, so the next Accept reports it instead of
+        /// refreshing the whole library again.
+        enum class LoadFailure { None, ExistingCopy, DownloadedCopy };
+
         struct Entry {
             SongRequest request;
             Clock::time_point nextLookup;  // FetchingInfo: when to ask BeatSaver
             int failedLookups = 0;
             Clock::time_point dropAt;  // NotFound: when it leaves the queue
-            bool filesInstalled = false;
+            // Where this session's download went, which may be a de-duplicated
+            // name; checked again on every Accept in case it was deleted.
+            std::filesystem::path installedFolder;
+            LoadFailure loadFailure = LoadFailure::None;
         };
 
         enum class Stage { Checking, Downloading, WaitingForRefresh, Refreshing, Opening, Selecting };
@@ -79,6 +90,8 @@ namespace SimpleBSStreamChat::Requests {
             std::string url;
             std::filesystem::path folder;
             bool filesInstalled = false;
+            bool downloaded = false;  // files came from this Accept's download
+            LoadFailure previousFailure = LoadFailure::None;
             bool probeExisting = false;
             bool existingChecked = false;
             Stage stage = Stage::Checking;
@@ -102,10 +115,13 @@ namespace SimpleBSStreamChat::Requests {
 
         void LoadStored();
 
-        // Worker thread.
+        // Lookup worker thread.
         void RunWorker();
         void ApplyLookupLocked(int64_t id, MapLookup const& lookup);
         void PruneLocked(Clock::time_point now);
+        // Saver thread: writes or deletes the stored queue, so a save never
+        // waits behind a BeatSaver lookup, and flushes a pending save on stop.
+        void RunSaver();
 
         // Installs; main thread.
         void Drive();
@@ -114,7 +130,8 @@ namespace SimpleBSStreamChat::Requests {
         void Advance();
         void StartDownload(float now);
         void BeginOpening(float now);
-        void RememberInstalled(int64_t id);
+        void RememberInstalled(int64_t id, std::filesystem::path const& folder);
+        void RememberLoadFailure(int64_t id, LoadFailure failure);
         /// No-op (no redraw) when nothing changes, since waiting steps repeat every frame.
         void SetStatus(int64_t id, RequestStatus status, std::string detail);
         void SetProgress(int64_t id, float fraction);  // any thread
@@ -122,12 +139,14 @@ namespace SimpleBSStreamChat::Requests {
         void FinishInstall(std::optional<RequestStatus> status, std::string detail = {});
 
         mutable std::mutex _lock;
-        std::condition_variable _wake;
+        std::condition_variable _wake;      // lookup worker
+        std::condition_variable _saveWake;  // saver
         std::vector<Entry> _queue;
         int _version = 0;
         int64_t _nextId = 0;
+        // Write (or, with Persist Queue off, delete) the stored queue. The
+        // saver reads the setting when it runs, so the latest value wins.
         bool _saveDue = false;
-        bool _deleteStored = false;
         std::atomic<bool> _stopping{false};
         Clock::time_point _nextPrune;
         std::unordered_map<std::string, Clock::time_point> _lastRequest;  // per viewer
@@ -142,5 +161,6 @@ namespace SimpleBSStreamChat::Requests {
 
         std::unique_ptr<Songs::MapInstaller> _installer;
         std::thread _worker;
+        std::thread _saver;
     };
 }

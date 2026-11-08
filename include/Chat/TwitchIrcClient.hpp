@@ -23,11 +23,10 @@ namespace SimpleBSStreamChat::Chat {
         void ConnectAndRead();
         void HandlePrivmsg(IrcMessage const& message);
         void HandleControl(IrcMessage const& message);
-        void UpdateViewers();
+        std::optional<int> FetchViewers(Net::HttpClient& http) override;
 
         std::string _channel;  // lowercase, without '#'
         std::string _channelId;
         int _messageCount = 0;
-        std::unique_ptr<Net::HttpClient> _http;  // viewer counts; created on the client's thread
     };
 }

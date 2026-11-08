@@ -2,6 +2,7 @@
 #include "Net/Curl.hpp"
 
 #include <cctype>
+#include <stdexcept>
 
 namespace SimpleBSStreamChat::Net {
     namespace {
@@ -9,10 +10,15 @@ namespace SimpleBSStreamChat::Net {
             std::string* body;
             HttpClient::StopWhen const* stopWhen;
             bool stoppedEarly = false;
+            bool tooLarge = false;
         };
 
         size_t Write(char* data, size_t size, size_t count, void* userdata) {
             auto& state = *static_cast<WriteState*>(userdata);
+            if (state.body->size() + size * count > HttpClient::MaxResponseBytes) {
+                state.tooLarge = true;
+                return 0;  // aborts the transfer with CURLE_WRITE_ERROR
+            }
             state.body->append(data, size * count);
             if (*state.stopWhen && (*state.stopWhen)(*state.body)) {
                 state.stoppedEarly = true;
@@ -22,11 +28,13 @@ namespace SimpleBSStreamChat::Net {
         }
     }
 
-    HttpClient::HttpClient(std::atomic<bool> const& stopping) : _curl(NewEasyHandle(stopping)) {
+    HttpClient::HttpClient(std::atomic<bool> const& stopping, TlsTrust trust) : _curl(NewEasyHandle(stopping, trust)) {
         curl_easy_setopt(_curl, CURLOPT_USERAGENT, BrowserUserAgent);
         curl_easy_setopt(_curl, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(_curl, CURLOPT_MAXREDIRS, 5L);
         curl_easy_setopt(_curl, CURLOPT_TIMEOUT, 30L);
+        // Refuses an oversized reply up front when the server states its size.
+        curl_easy_setopt(_curl, CURLOPT_MAXFILESIZE_LARGE, static_cast<curl_off_t>(MaxResponseBytes));
         // Offers only the encodings this libcurl can decode (none without zlib).
         curl_easy_setopt(_curl, CURLOPT_ACCEPT_ENCODING, "");
         curl_easy_setopt(_curl, CURLOPT_WRITEFUNCTION, &Write);
@@ -62,6 +70,8 @@ namespace SimpleBSStreamChat::Net {
         auto rc = curl_easy_perform(_curl);
         curl_easy_setopt(_curl, CURLOPT_HTTPHEADER, nullptr);
         curl_slist_free_all(list);
+        if (state.tooLarge || rc == CURLE_FILESIZE_EXCEEDED)
+            throw std::runtime_error("response too large");
         if (!(rc == CURLE_WRITE_ERROR && state.stoppedEarly))
             Check(rc, "request");
 

@@ -98,7 +98,9 @@ namespace {
         auto detail = request.detail.empty() ? std::string() : " " + UI::Escape(request.detail);
         switch (request.status) {
             case RequestStatus::FetchingInfo:
-                return text + "<color=#999999><i>loading...</i> · <color=#7FD4FF>" + request.key + "</color></color>";
+                // The detail is the lookup's retry note, if BeatSaver failed.
+                return text + "<color=#999999><i>loading...</i> · <color=#7FD4FF>" + request.key + "</color>" +
+                       (request.detail.empty() ? std::string() : " · " + UI::Escape(request.detail)) + "</color>";
             case RequestStatus::Preparing:
                 return text + "<color=#FFD24A>Checking installed map</color>";
             case RequestStatus::Downloading:

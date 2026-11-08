@@ -29,8 +29,13 @@
 #include <cmath>
 #include <condition_variable>
 #include <deque>
+#include <iterator>
 #include <mutex>
+#include <optional>
+#include <span>
+#include <string_view>
 #include <thread>
+#include <utility>
 
 namespace SimpleBSStreamChat::UI {
     namespace {
@@ -45,7 +50,47 @@ namespace SimpleBSStreamChat::UI {
         constexpr float DisplayScale = 0.9f;
         constexpr int MaxDecodesPerPump = 3;
         constexpr size_t MaxDownloadBytes = 2 * 1024 * 1024;
+        // Emotes and badges are at most a few hundred pixels. A small file
+        // can still claim huge dimensions, and Unity would allocate them in full.
+        constexpr uint32_t MaxDecodeSide = 2048;
         constexpr auto RetryFailedAfter = std::chrono::minutes(5);
+
+        // Width and height from a PNG or JPEG header, read before Unity decodes
+        // the image. Empty for anything else, which LoadImage can't read either.
+        std::optional<std::pair<uint32_t, uint32_t>> EncodedSize(std::span<unsigned char const> data) {
+            auto u16 = [&](size_t i) { return static_cast<uint32_t>(data[i] << 8 | data[i + 1]); };
+            auto u32 = [&](size_t i) { return u16(i) << 16 | u16(i + 2); };
+            static constexpr unsigned char Png[] = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+            if (data.size() >= 24 && std::equal(std::begin(Png), std::end(Png), data.begin()) &&
+                std::string_view(reinterpret_cast<char const*>(&data[12]), 4) == "IHDR")
+                return std::pair{u32(16), u32(20)};
+            if (data.size() < 4 || data[0] != 0xFF || data[1] != 0xD8)
+                return std::nullopt;
+            // JPEG: walk the marker segments to the frame header (SOFn).
+            for (size_t i = 2; i + 4 <= data.size();) {
+                if (data[i] != 0xFF)
+                    return std::nullopt;
+                uint8_t marker = data[i + 1];
+                if (marker == 0xFF) {  // fill byte
+                    i++;
+                    continue;
+                }
+                if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD8)) {  // no length field
+                    i += 2;
+                    continue;
+                }
+                size_t length = u16(i + 2);
+                if (length < 2)
+                    return std::nullopt;
+                if (marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC) {
+                    if (i + 9 > data.size())
+                        return std::nullopt;
+                    return std::pair{u16(i + 7), u16(i + 5)};  // stored as height, then width
+                }
+                i += 2 + length;
+            }
+            return std::nullopt;
+        }
 
         // Bilinear resize of an RGBA image (rows bottom-up, as Unity stores them).
         std::vector<uint8_t> Resize(uint8_t const* src, int sw, int sh, int dw, int dh) {
@@ -95,7 +140,12 @@ namespace SimpleBSStreamChat::UI {
             int width = 0, height = 0;
         };
         EmoteDownloader() : _thread(&EmoteDownloader::Run, this) {}
-        ~EmoteDownloader() { _stopping = true; _wake.notify_all(); _thread.join(); }
+        ~EmoteDownloader() {
+            // Set under the lock, so the worker can't miss the wakeup between
+            // checking its wait condition and starting to wait.
+            { std::lock_guard lock(_lock); _stopping = true; }
+            _wake.notify_all(); _thread.join();
+        }
         void SetAnimations(bool enabled) {
             _animationsEnabled = enabled; ++_animationEpoch;
             if (!enabled) {
@@ -374,6 +424,12 @@ namespace SimpleBSStreamChat::UI {
     bool EmoteAtlas::AddPng(std::string const& key, Entry& entry, std::span<unsigned char const> png) {
         if (png.empty())
             return false;
+        auto size = EncodedSize(png);
+        if (!size || size->first == 0 || size->second == 0 || size->first > MaxDecodeSide || size->second > MaxDecodeSide) {
+            if (Trace())
+                INFO("Emote {}: refused before decoding ({})", key, size ? fmt::format("{}x{}", size->first, size->second) : "not PNG or JPEG");
+            return false;
+        }
         ArrayW<uint8_t> data(png.size());
         std::copy(png.begin(), png.end(), data.begin());
         auto decode = _decodeTexture.ptr();

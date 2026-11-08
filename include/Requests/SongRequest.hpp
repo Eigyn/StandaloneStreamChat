@@ -24,6 +24,7 @@ namespace SimpleBSStreamChat::Requests {
         int64_t id = 0;   // stable handle for the UI
         std::string key;  // BeatSaver key, lowercase hex
         std::string requester;
+        std::string requesterId;  // the platform's user id; empty if it gave none
         Chat::ChatPlatform platform = Chat::ChatPlatform::System;
         // Filled by the BeatSaver lookup.
         std::string songName;

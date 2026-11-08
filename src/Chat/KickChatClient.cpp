@@ -302,8 +302,6 @@ namespace SimpleBSStreamChat::Chat {
                 refreshAt.reset();
                 socket.SendText(fmt::format(R"({{"id":{},"refresh":{{"token":{}}}}})", nextId++, Json::Quote(GuestToken(http, clientId))));
             }
-            if (ViewerPollDue())
-                UpdateViewers(http);
 
             // A frame can carry several newline-separated replies.
             std::string_view rest(frame);
@@ -343,25 +341,17 @@ namespace SimpleBSStreamChat::Chat {
     }
 
     // The same channel lookup as Resolve; `livestream` is null while offline.
-    void KickChatClient::UpdateViewers(Net::HttpClient& http) {
-        if (IsNumber(_channel)) {
-            _viewers = -1;  // a bare chatroom id has no channel page to ask
-            return;
+    std::optional<int> KickChatClient::FetchViewers(Net::HttpClient& http) {
+        if (IsNumber(_channel))
+            return -1;  // a bare chatroom id has no channel page to ask
+        auto response = http.Get("https://kick.com/api/v2/channels/" + Net::UrlEncode(_channel), ApiHeaders(_channel));
+        if (!response.Ok()) {
+            DEBUG("Kick: viewer count HTTP {}", response.status);
+            return std::nullopt;
         }
-        try {
-            auto response = http.Get("https://kick.com/api/v2/channels/" + Net::UrlEncode(_channel), ApiHeaders(_channel));
-            if (!response.Ok()) {
-                DEBUG("Kick: viewer count HTTP {}", response.status);
-                return;
-            }
-            auto doc = ParseJson(response.body);
-            auto count = Json::Scalar(Json::Path(&doc, {"livestream", "viewer_count"}));
-            _viewers = count.empty() ? -1 : std::atoi(count.c_str());
-        } catch (std::exception const& ex) {
-            if (_stopping)
-                throw;
-            DEBUG("Kick: viewer count failed: {}", ex.what());
-        }
+        auto doc = ParseJson(response.body);
+        auto count = Json::Scalar(Json::Path(&doc, {"livestream", "viewer_count"}));
+        return count.empty() ? -1 : std::atoi(count.c_str());
     }
 
     void KickChatClient::HandleChatMessage(Json::Value const* payload) {

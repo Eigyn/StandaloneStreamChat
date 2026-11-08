@@ -65,7 +65,7 @@ WebSocket::WebSocket(std::atomic<bool> const& stopping) : _tls(stopping), _stopp
 void WebSocket::Connect(std::string_view, std::vector<std::string> const&) {}
 void WebSocket::SendText(std::string_view) {}
 bool WebSocket::Receive(std::string&, int) { return false; }
-HttpClient::HttpClient(std::atomic<bool> const&) {}
+HttpClient::HttpClient(std::atomic<bool> const&, TlsTrust) {}
 HttpClient::~HttpClient() = default;
 HttpClient::Response HttpClient::Get(std::string const& url, std::vector<std::string> const&, StopWhen) {
     ++Fixture::httpCalls;

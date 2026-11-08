@@ -3,9 +3,11 @@
 #include "Chat/ChatMessage.hpp"
 
 #include <array>
+#include <atomic>
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace SimpleBSStreamChat::Chat {
@@ -59,5 +61,14 @@ namespace SimpleBSStreamChat::Chat {
         std::array<std::string, PlatformSlots> _channelIds;  // guarded by _lock
         std::array<std::unique_ptr<ChatService>, PlatformSlots> _services;
         std::shared_ptr<RecentIds> _youTubeSeen;
+
+        /// A retired service winding down off the main thread. Stop() joins
+        /// these too, so none outlives the manager its callbacks point at.
+        struct Retiring {
+            std::thread thread;
+            std::shared_ptr<std::atomic<bool>> done;
+        };
+        std::vector<Retiring> _retiring;  // main thread
+        void JoinRetired(bool all);
     };
 }

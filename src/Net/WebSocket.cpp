@@ -141,6 +141,9 @@ namespace SimpleBSStreamChat::Net {
             if (frame.opcode == Text || frame.opcode == Binary) {
                 _fragments = std::move(frame.payload);
             } else if (frame.opcode == Continuation) {
+                // The frame limit applies to the whole message, not each piece.
+                if (_fragments.size() + frame.payload.size() > MaxPayload)
+                    throw std::runtime_error("message too large");
                 _fragments += frame.payload;
             } else if (frame.opcode == Ping) {
                 SendFrame(Pong, frame.payload);

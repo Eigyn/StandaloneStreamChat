@@ -218,6 +218,7 @@ namespace SimpleBSStreamChat::Chat {
         int errorDelaySeconds = 2;
         bool reportedOffline = false;
         while (!_stopping) {
+            SetViewerSession({});  // each pass starts a new session
             try {
                 Net::HttpClient http(_stopping);
                 auto videoId = LooksLikeVideoId(_channel) ? _channel : ResolveLiveVideoId(http);
@@ -238,6 +239,7 @@ namespace SimpleBSStreamChat::Chat {
                     continue;
                 }
                 _onStatus(fmt::format("YouTube: connected to live chat ({})", videoId));
+                SetViewerSession({videoId, _apiKey, _clientVersion});
                 errorDelaySeconds = 2;
 
                 while (!_stopping) {
@@ -258,8 +260,6 @@ namespace SimpleBSStreamChat::Chat {
                         errorDelaySeconds = std::min(errorDelaySeconds * 2, 120);
                         break;
                     }
-                    if (ViewerPollDue())
-                        UpdateViewers(http, videoId);
                     SleepFor(std::chrono::milliseconds(std::clamp(result.timeoutMs, MinPollDelayMs, MaxPollDelayMs)));
                 }
             } catch (std::exception const& ex) {
@@ -328,47 +328,50 @@ namespace SimpleBSStreamChat::Chat {
         return !_continuation.empty();
     }
 
+    void YouTubeChatClient::SetViewerSession(ViewerSession session) {
+        std::lock_guard lock(_viewerSessionLock);
+        _viewerSession = std::move(session);
+    }
+
     // The watch page's live counter ("9,545 watching now"), from InnerTube's
     // updated_metadata with the chat session's key. No counter means it ended.
-    void YouTubeChatClient::UpdateViewers(Net::HttpClient& http, std::string const& videoId) {
-        auto url = "https://www.youtube.com/youtubei/v1/updated_metadata?key=" + Net::UrlEncode(_apiKey) + "&prettyPrint=false";
-        auto body = fmt::format(R"({{"context":{{"client":{{"clientName":"WEB","clientVersion":{},"hl":"en","gl":"US"}}}},"videoId":{}}})",
-                                Json::Quote(_clientVersion), Json::Quote(videoId));
-        try {
-            auto response = http.PostJson(url, body, PageHeaders());
-            if (!response.Ok()) {
-                DEBUG("YouTube: viewer count HTTP {}", response.status);
-                return;
-            }
-            rapidjson::Document doc;
-            doc.Parse(response.body.c_str(), response.body.size());
-            auto actions = doc.HasParseError() ? nullptr : Json::Get(&doc, "actions");
-            int count = -1;
-            if (Json::IsArray(actions)) {
-                for (auto const& action : actions->GetArray()) {
-                    auto viewCount = Json::Path(&action, {"updateViewershipAction", "viewCount", "videoViewCountRenderer", "viewCount"});
-                    auto text = Json::Scalar(Json::Get(viewCount, "simpleText"));
-                    if (auto runs = Json::Get(viewCount, "runs"); text.empty() && Json::IsArray(runs)) {
-                        for (auto const& run : runs->GetArray())
-                            text += Json::Scalar(Json::Get(&run, "text"));
-                    }
-                    std::string digits;
-                    for (char c : text) {
-                        if (c >= '0' && c <= '9')
-                            digits.push_back(c);
-                    }
-                    if (!digits.empty() && digits.size() < 10) {
-                        count = std::stoi(digits);
-                        break;
-                    }
-                }
-            }
-            _viewers = count;
-        } catch (std::exception const& ex) {
-            if (_stopping)
-                throw;
-            DEBUG("YouTube: viewer count failed: {}", ex.what());
+    std::optional<int> YouTubeChatClient::FetchViewers(Net::HttpClient& http) {
+        ViewerSession session;
+        {
+            std::lock_guard lock(_viewerSessionLock);
+            session = _viewerSession;
         }
+        if (session.videoId.empty())
+            return -1;  // not live, or between sessions
+        auto url = "https://www.youtube.com/youtubei/v1/updated_metadata?key=" + Net::UrlEncode(session.apiKey) + "&prettyPrint=false";
+        auto body = fmt::format(R"({{"context":{{"client":{{"clientName":"WEB","clientVersion":{},"hl":"en","gl":"US"}}}},"videoId":{}}})",
+                                Json::Quote(session.clientVersion), Json::Quote(session.videoId));
+        auto response = http.PostJson(url, body, PageHeaders());
+        if (!response.Ok()) {
+            DEBUG("YouTube: viewer count HTTP {}", response.status);
+            return std::nullopt;
+        }
+        rapidjson::Document doc;
+        doc.Parse(response.body.c_str(), response.body.size());
+        auto actions = doc.HasParseError() ? nullptr : Json::Get(&doc, "actions");
+        if (Json::IsArray(actions)) {
+            for (auto const& action : actions->GetArray()) {
+                auto viewCount = Json::Path(&action, {"updateViewershipAction", "viewCount", "videoViewCountRenderer", "viewCount"});
+                auto text = Json::Scalar(Json::Get(viewCount, "simpleText"));
+                if (auto runs = Json::Get(viewCount, "runs"); text.empty() && Json::IsArray(runs)) {
+                    for (auto const& run : runs->GetArray())
+                        text += Json::Scalar(Json::Get(&run, "text"));
+                }
+                std::string digits;
+                for (char c : text) {
+                    if (c >= '0' && c <= '9')
+                        digits.push_back(c);
+                }
+                if (!digits.empty() && digits.size() < 10)
+                    return std::stoi(digits);
+            }
+        }
+        return -1;
     }
 
     YouTubeChatClient::PollResult YouTubeChatClient::Poll(Net::HttpClient& http) {

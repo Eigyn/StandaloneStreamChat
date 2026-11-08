@@ -35,7 +35,7 @@ namespace SimpleBSStreamChat::Chat {
         std::string GuestToken(Net::HttpClient& http, std::string const& clientId);
         void HandleChatMessage(Json::Value const* payload);
         void HandleControl(std::string_view event, Json::Value const* payload);
-        void UpdateViewers(Net::HttpClient& http);
+        std::optional<int> FetchViewers(Net::HttpClient& http) override;
 
         std::string _channel;  // slug, or a numeric chatroom id
         std::string _chatroomId;

@@ -48,6 +48,17 @@ namespace SimpleBSStreamChat::Chat {
         }
         for (auto& service : _services)
             service.reset();
+        JoinRetired(true);
+    }
+
+    void ChatManager::JoinRetired(bool all) {
+        std::erase_if(_retiring, [all](Retiring& retiring) {
+            if (!all && !retiring.done->load())
+                return false;
+            if (retiring.thread.joinable())
+                retiring.thread.join();
+            return true;
+        });
     }
 
     void ChatManager::RestartPlatform(ChatPlatform platform, bool clearMessages) {
@@ -120,8 +131,14 @@ namespace SimpleBSStreamChat::Chat {
             return;
         service->RequestStop();
         // Joining can take up to a second while a transfer notices the stop;
-        // don't stall the game for it.
-        std::thread([service = std::move(service)]() mutable { service.reset(); }).detach();
+        // don't stall the game for it. Earlier ones that finished are joined now.
+        JoinRetired(false);
+        auto done = std::make_shared<std::atomic<bool>>(false);
+        std::thread thread([service = std::move(service), done]() mutable {
+            service.reset();
+            *done = true;
+        });
+        _retiring.push_back({std::move(thread), std::move(done)});
     }
 
     void ChatManager::AddFromService(ChatMessage message, size_t slot, int generation) {

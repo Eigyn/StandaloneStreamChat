@@ -4,6 +4,7 @@
 #include "Chat/RecentIds.hpp"
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -34,8 +35,19 @@ namespace SimpleBSStreamChat::Chat {
         /// Loads the popout chat page and extracts what polling needs.
         bool Bootstrap(Net::HttpClient& http, std::string const& videoId);
         PollResult Poll(Net::HttpClient& http);
-        void UpdateViewers(Net::HttpClient& http, std::string const& videoId);
+        std::optional<int> FetchViewers(Net::HttpClient& http) override;
 
+        /// What the viewer thread needs from the live chat session; an empty
+        /// video id while no session is up.
+        struct ViewerSession {
+            std::string videoId;
+            std::string apiKey;
+            std::string clientVersion;
+        };
+        void SetViewerSession(ViewerSession session);
+
+        std::mutex _viewerSessionLock;
+        ViewerSession _viewerSession;  // guarded by _viewerSessionLock
         std::string _channel;  // @handle, UC channel id, video id, or URL
         std::shared_ptr<RecentIds> _seen;
         std::string _apiKey;
