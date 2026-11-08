@@ -18,6 +18,8 @@ StandaloneStreamChat is inspired by BeatSaberPlus and EnhancedStreamChat. See [C
 - Inline emotes and badges, including BTTV, FFZ, and 7TV emotes.
 - Optional animated emotes, off by default to conserve Quest memory.
 - BeatSaver song requests through `!bsr <key>`, with an accept/deny queue, map downloads, and song selection.
+
+  *^ Note: If you have a gazillion songs downloaded (like 1000+...), it might take a little bit to load after installation due to songcore reloading your entire song library. Requested songs that are already installed will load much quicker!*
 - Request cooldowns, duplicate controls, and an optional persistent queue.
 - Message deletion updates, deleted-message markers, and mention highlights.
 - A movable, lockable panel with adjustable size, curvature, background color, opacity, and text size.
