@@ -40,12 +40,17 @@ namespace StandaloneStreamChat {
         text->set_richText(true);
         text->set_raycastTarget(false);
 
+        // Unset (-1) until the drawn text turns out taller than the layout height.
+        auto fit = go->AddComponent<UnityEngine::UI::LayoutElement*>();
+
         auto row = go->AddComponent<ChatRow*>();
         row->_background = background;
         row->_text = text;
         row->_sequence = -1;
         row->_revision = -1;
         row->_waitingForEmotes = false;
+        row->_fit = fit;
+        row->_heightChecks = 0;
         return row;
     }
 }

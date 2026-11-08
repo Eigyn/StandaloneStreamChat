@@ -90,6 +90,10 @@ DECLARE_CLASS_CODEGEN_INTERFACES(StandaloneStreamChat, ChatPanel, UnityEngine::M
     /// row for each new one so only new text gets laid out.
     void SyncRows(std::vector<Chat::ChatMessage> const& messages);
     void RenderRow(ChatRow* row, Chat::ChatMessage const& message);
+    /// For a few frames after a row renders, grows it if its drawn text came
+    /// out taller than the height TMP gave the layout, so it can't spill
+    /// over the row below.
+    void FitRowHeights();
     /// Shows/hides the strip and its platforms and fills in the counts; runs
     /// about once a second and on every config change.
     void RefreshViewerStrip();

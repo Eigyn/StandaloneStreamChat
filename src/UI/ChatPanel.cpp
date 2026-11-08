@@ -42,6 +42,8 @@
 #include "UnityEngine/UI/VerticalLayoutGroup.hpp"
 #include "UnityEngine/Events/UnityAction.hpp"
 #include "UnityEngine/Vector3.hpp"
+#include "UnityEngine/Bounds.hpp"
+#include "UnityEngine/Rect.hpp"
 #include "TMPro/TextAlignmentOptions.hpp"
 #include "TMPro/TextOverflowModes.hpp"
 #include "Compat.hpp"
@@ -719,6 +721,9 @@ namespace StandaloneStreamChat {
             label->set_fontSharedMaterial(material);
         label->set_fontSize(config.fontSize);
         label->set_text(text);
+        // New text: back to TMP's own height, checked once it has been drawn.
+        row->_fit->set_minHeight(-1.0f);
+        row->_heightChecks = 3;
 
         // Highlight Messages: a dark band behind the whole message.
         row->_background->set_enabled(config.highlightMessages || message.isHighlighted || message.isMention);
@@ -729,6 +734,31 @@ namespace StandaloneStreamChat {
         row->_sequence = static_cast<int64_t>(message.sequence);
         row->_revision = static_cast<int64_t>(message.revision);
         row->_waitingForEmotes = waiting;
+    }
+
+    void ChatPanel::FitRowHeights() {
+        for (int i = 0, count = _rows->get_childCount(); i < count; i++) {
+            auto row = _rows->GetChild(i)->GetComponent<ChatRow*>();
+            if (row->_heightChecks <= 0 || !row->get_gameObject()->get_activeSelf())
+                continue;
+            row->_heightChecks--;
+            // The text sits at the top of its row, so it spills when its lowest
+            // glyph ends below the bottom of the text's own rect.
+            auto label = row->_text;
+            float bottom = label->get_textBounds().get_min().y;
+            auto rect = label->get_rectTransform()->get_rect();
+            float overflow = rect.get_yMin() - bottom;
+            if (overflow <= 0.05f)
+                continue;
+            // Room for the drawn text plus a little for descenders; the row
+            // keeps this until its text changes again.
+            float needed = rect.get_height() + overflow + label->get_fontSize() * 0.15f;
+            if (needed > row->_fit->get_minHeight()) {
+                row->_fit->set_minHeight(needed);
+                if (row->_heightChecks == 2)  // log once per render
+                    INFO("Chat row grown to fit its text: {:.1f} -> {:.1f}", rect.get_height(), needed);
+            }
+        }
     }
 
     void ChatPanel::Recenter() {
@@ -777,6 +807,9 @@ namespace StandaloneStreamChat {
             _rerenderRows = true;
             _lastVersion = -1;
         }
+
+        // Before this frame's renders: their text is drawn only after Update.
+        FitRowHeights();
 
         auto version = chat.Version();
         std::vector<ChatMessage> messages;
