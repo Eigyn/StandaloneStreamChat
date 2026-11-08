@@ -29,6 +29,9 @@
 !/docs/images/
 !/docs/images/stream-chat.jpg
 
+# Cover image packed into each QMOD and found by BSQMods at the repository root.
+!/cover.png
+
 # Full upstream licenses and provenance records, including future .txt files.
 !/licenses/
 !/licenses/**

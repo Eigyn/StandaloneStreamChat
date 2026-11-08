@@ -24,6 +24,7 @@
       "qmod": [
         "pwsh ./build.ps1",
         "qpm qmod manifest",
+        "pwsh -NoProfile -Command Copy-Item -LiteralPath ../cover.png -Destination cover.png -Force",
         "qpm qmod zip",
         "pwsh ./loosen-deps.ps1",
         "pwsh ../scripts/package-release.ps1 -GameVersion 1.40.8"

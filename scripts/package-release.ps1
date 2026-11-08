@@ -40,6 +40,15 @@ if (@($noticeFiles.Name | Sort-Object -Unique).Count -ne $noticeFiles.Count) {
     throw 'License filenames must be unique across the project root and licenses/.'
 }
 
+# mod.json names this as its coverImage, and BSQMods finds the same file at
+# the repository root.
+$coverPath = Join-Path $projectRoot 'cover.png'
+if (-not (Test-Path -LiteralPath $coverPath -PathType Leaf)) {
+    throw 'Missing cover.png in the project root.'
+}
+$coverFile = Get-Item -LiteralPath $coverPath
+$archiveFiles = @($noticeFiles) + $coverFile
+
 # Keep the notices inside the installable archive as well as beside it, so a
 # QMOD shared separately from the release ZIP still carries the notices.
 $qmod = [System.IO.Compression.ZipFile]::Open($qmodPath, [System.IO.Compression.ZipArchiveMode]::Update)
@@ -60,6 +69,10 @@ try {
     if ($version -ne $package.info.version) {
         throw "QMOD version $version does not match the project version $($package.info.version)."
     }
+    $cover = $manifest.PSObject.Properties['coverImage']
+    if (-not $cover -or $cover.Value -cne $coverFile.Name) {
+        throw "mod.json must name $($coverFile.Name) as its coverImage."
+    }
     $libraries = @($qmod.Entries | Where-Object FullName -CEQ $binaryName)
     if (@($manifest.lateModFiles).Count -ne 1 -or $manifest.lateModFiles[0] -cne $binaryName -or $libraries.Count -ne 1) {
         throw "Expected exactly one late mod library named $binaryName."
@@ -70,7 +83,7 @@ try {
     if ($archivedBinaryHash -ne $expectedBinaryHash) {
         throw "The QMOD library does not match $binaryPath."
     }
-    foreach ($file in $noticeFiles) {
+    foreach ($file in $archiveFiles) {
         foreach ($old in @($qmod.Entries | Where-Object FullName -EQ $file.Name)) {
             $old.Delete()
         }
@@ -85,7 +98,7 @@ try {
 # Check the actual archive bytes before writing release artifacts.
 $qmod = [System.IO.Compression.ZipFile]::OpenRead($qmodPath)
 try {
-    foreach ($file in $noticeFiles) {
+    foreach ($file in $archiveFiles) {
         $entry = $qmod.GetEntry($file.Name)
         if (-not $entry) { throw "The QMOD is missing $($file.Name)." }
         $stream = $entry.Open()
@@ -93,7 +106,7 @@ try {
             $archivedHash = [System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($stream))
         } finally { $stream.Dispose() }
         if ($archivedHash -ne (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash) {
-            throw "The QMOD notice does not match its source: $($file.Name)"
+            throw "The QMOD copy does not match its source: $($file.Name)"
         }
     }
 } finally {
@@ -129,6 +142,6 @@ try {
     $zipStream.Dispose()
 }
 
-Write-Output "Packaged $($noticeFiles.Count) license/provenance files with the $GameVersion QMOD."
+Write-Output "Packaged $($noticeFiles.Count) license/provenance files and $($coverFile.Name) with the $GameVersion QMOD."
 Write-Output "Release folder: $releaseFolder"
 Write-Output "Release ZIP: $releaseZip"
