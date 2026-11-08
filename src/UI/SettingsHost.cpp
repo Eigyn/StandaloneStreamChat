@@ -86,8 +86,8 @@ namespace StandaloneStreamChat {
 
     float SettingsHost::get_curveAmount() { return GetConfig().curveAmount; }
     void SettingsHost::set_curveAmount(float value) { SetAppearance(&Config::curveAmount, value); }
-    // Unset (below 0) only until the panel first appears, which is before
-    // the settings can be opened.
+    // Below 0 (set in the file) only until the panel first appears, which is
+    // before the settings can be opened.
     float SettingsHost::get_cornerRadius() { return std::max(0.0f, GetConfig().cornerRadius); }
     void SettingsHost::set_cornerRadius(float value) { SetAppearance(&Config::cornerRadius, value); }
     float SettingsHost::get_panelWidth() { return GetConfig().panelWidth; }

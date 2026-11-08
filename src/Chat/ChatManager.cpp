@@ -37,7 +37,7 @@ namespace StandaloneStreamChat::Chat {
 
         auto const& config = GetConfig();
         if (config.twitchChannel.empty() && config.youTubeChannel.empty() && config.kickChannel.empty())
-            AddSystemMessage("Set a Twitch, YouTube or Kick channel in Mods > StandaloneStreamChat.");
+            AddSystemMessage("Set a Twitch, YouTube or Kick channel in Mods > StandaloneStreamChat, then turn it on.");
     }
 
     void ChatManager::Stop() {

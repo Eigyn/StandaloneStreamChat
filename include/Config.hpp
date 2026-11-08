@@ -39,19 +39,18 @@ namespace StandaloneStreamChat {
     // The mod's settings, saved as JSON in the Configs folder of the game's
     // external files directory.
     struct Config {
+        // Each platform connects once it has a channel and is switched on.
         std::string twitchChannel;  // without '#'
-        bool enableTwitch = true;
+        bool enableTwitch = false;
         std::string youTubeChannel;  // @handle, UC channel id, or 11-char video id
-        bool enableYouTube = true;
+        bool enableYouTube = false;
         std::string kickChannel;  // slug, or numeric chatroom id
-        // On by default: nothing connects until a
-        // channel is set, so the toggle would only be one more step.
-        bool enableKick = true;
+        bool enableKick = false;
         bool showPanel = true;
         Shared<bool> showSystemMessages = true;
         Shared<bool> showViewerCounts = true;
         // Size of the viewer-count numbers and their platform icons.
-        float viewerCountSize = 2.9f;
+        float viewerCountSize = 5.0f;
         // Platform and broadcaster/mod icons in front of messages; off = just name and message.
         bool showPlatformIcons = true;
         // Stream emotes as inline images; off = their names. (Unicode emoji
@@ -61,18 +60,18 @@ namespace StandaloneStreamChat {
         bool animatedEmotes = false;
         // A dark band behind each message, this opaque.
         bool highlightMessages = true;
-        float highlightOpacity = 0.55f;
-        float fontSize = 3.4f;
-        float panelWidth = 90.0f;
-        float panelHeight = 65.0f;
+        float highlightOpacity = 0.5f;
+        float fontSize = 4.0f;
+        float panelWidth = 100.0f;
+        float panelHeight = 140.0f;
         // 0 = flat; higher = stronger curve (radius = 1200 / amount).
         float curveAmount = 0.0f;
-        // Window corner radius in panel units; 0 = square. Quest only. Below 0
-        // means unset: the panel fills in the rounding BSML's backdrop had.
-        float cornerRadius = -1.0f;
+        // Window corner radius in panel units; 0 = square. Quest only. A value
+        // below 0 in the file makes the panel take the rounding BSML's backdrop had.
+        float cornerRadius = 1.5f;
         // Window backdrop tint as "#RRGGBB"; alpha comes from backgroundOpacity.
         std::string backgroundColor = "#000000";
-        float backgroundOpacity = 0.6f;
+        float backgroundOpacity = 0.7f;
         // Unlocked = the whole panel is a grab handle; locked = it can't be moved.
         bool panelUnlocked = true;
         // While dragging: 0 = free, 1 = X only, 2 = Y only, 3 = Z only.
