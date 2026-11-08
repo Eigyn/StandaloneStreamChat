@@ -167,6 +167,12 @@ void OtherPlatforms() {
     rapidjson::Document deletion; deletion.Parse(R"({"id":"action-id","message":{"id":"k1"}})");
     kick.HandleControl("App\\Events\\MessageDeletedEvent", &deletion);
     Check(history.size() == 1 && history.front().isDeleted, "Kick deletion uses message.id, not action id");
+    rapidjson::Document founder;
+    founder.Parse(R"({"id":"k2","content":"hi","sender":{"id":43,"username":"Bob","identity":{"badges_v2":[{"badge_type":"kick_founder22","name":"Founder","image_url":"https://ext.cdn.kick.com/chat/badges/founder.png","selected":true}]}}})");
+    kick.HandleChatMessage(&founder);
+    Check(history.size() == 2 && history[1].badges.size() == 1 &&
+              history[1].badges[0].imageUrl == "https://ext.cdn.kick.com/chat/badges/founder.png?width=128",
+          "Kick badge images are requested at badge size");
     std::cout << "PASS YouTube ordered removal actions and Kick badges/deletion\n";
 }
 void Resources() {

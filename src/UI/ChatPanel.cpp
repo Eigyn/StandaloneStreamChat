@@ -155,10 +155,18 @@ namespace {
                         if (status == UI::EmoteAtlas::Status::Ready) { line += " "; continue; }
                         waiting |= status == UI::EmoteAtlas::Status::Loading;
                     }
-                    auto builtin = badge.id == "broadcaster" || badge.id == "OWNER" ? "broadcaster"
-                                 : badge.id == "moderator" || badge.id == "MODERATOR" ? "moderator" : "";
-                    auto tag = atlas.IconTag(builtin);
-                    line += tag.empty() ? "[" + Escape(badge.label.empty() ? badge.id : badge.label) + "] " : tag + " ";
+                    // Without an image of its own, a broadcaster or moderator
+                    // badge uses the built-in icon; any other badge is left out
+                    // rather than shown as its name.
+                    bool broadcaster = badge.id == "broadcaster" || badge.id == "OWNER";
+                    bool moderator = badge.id == "moderator" || badge.id == "MODERATOR";
+                    if (!broadcaster && !moderator)
+                        continue;
+                    auto tag = atlas.IconTag(broadcaster ? "broadcaster" : "moderator");
+                    if (!tag.empty())
+                        line += tag + " ";
+                    else
+                        line += broadcaster ? "<color=#E91916>[B]</color> " : "<color=#00AD03>[M]</color> ";
                 }
             } else if (m.isBroadcaster || m.isModerator) {
                 auto badge = atlas.IconTag(m.isBroadcaster ? "broadcaster" : "moderator");

@@ -49,6 +49,15 @@ namespace StandaloneStreamChat::Chat {
             return value;
         }
 
+        // Kick's badge CDN resizes on request. Some badges, like the 2022
+        // founder badge, are 3000 px, 2.5 MB originals, past the emote limits.
+        std::string SizedBadgeUrl(std::string url) {
+            constexpr std::string_view BadgeCdn = "https://ext.cdn.kick.com/chat/badges/";
+            if (url.starts_with(BadgeCdn) && url.find('?') == std::string::npos)
+                url += "?width=128";
+            return url;
+        }
+
         bool IsNumber(std::string_view value) {
             return !value.empty() && std::all_of(value.begin(), value.end(), [](unsigned char c) { return std::isdigit(c); });
         }
@@ -422,6 +431,8 @@ namespace StandaloneStreamChat::Chat {
                                        Json::Scalar(Json::Get(&badge, "name")), Json::Scalar(Json::Get(&badge, "image_url"))});
             }
         }
+        for (auto& badge : chat.badges)
+            badge.imageUrl = SizedBadgeUrl(std::move(badge.imageUrl));
 
         auto count = ++_messageCount;
         if (count <= 5 || count % 100 == 0)
