@@ -17,7 +17,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
-set(PROJECT_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
+# Resolved, so its length matches the source paths in __FILE__ (the log
+# trims that many characters off each one).
+get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 set(SOURCE_DIR ${PROJECT_ROOT}/src)
 set(INCLUDE_DIR ${PROJECT_ROOT}/include)
 
