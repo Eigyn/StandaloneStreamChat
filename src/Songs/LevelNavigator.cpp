@@ -163,12 +163,8 @@ namespace StandaloneStreamChat::Songs {
             auto table = view ? view->_levelCollectionTableView : nullptr;
             switch (state.phase) {
                 case SelectionState::Phase::ChooseAll: {
-                    // Already selected counts only in All Songs; a selection in
-                    // Custom Songs or a pack still moves to All Songs.
-                    if (table && filtering->get_selectedLevelCategory() == Category::All && Matches(table->_selectedBeatmapLevel, level)) {
-                        state.phase = SelectionState::Phase::Confirm;
-                        return SelectionResult::Pending;
-                    }
+                    // Always finish in All Songs filtered to just the request,
+                    // even when the game already selected it somewhere.
                     if (!state.previousView)
                         state.previousView = CaptureView(filtering);
                     if (filtering->get_selectedLevelCategory() != Category::All) {
