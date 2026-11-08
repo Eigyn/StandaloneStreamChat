@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdlib>
 #include <optional>
 #include <stdexcept>
 
@@ -31,6 +32,28 @@ namespace StandaloneStreamChat::Chat {
             return value.size() == 11 && std::all_of(value.begin(), value.end(), IsIdChar);
         }
 
+        // A video id typed directly, or one inside a watch, youtu.be or /live/
+        // link (pasted into the settings, or /live's canonical link).
+        std::string VideoIdFromInput(std::string_view value) {
+            if (LooksLikeVideoId(value))
+                return std::string(value);
+            for (std::string_view marker : {"watch?v=", "&v=", "youtu.be/", "/live/"}) {
+                auto at = value.find(marker);
+                if (at == std::string_view::npos)
+                    continue;
+                auto start = at + marker.size();
+                auto id = value.substr(start, 11);
+                bool ends = start + 11 >= value.size() || !IsIdChar(static_cast<unsigned char>(value[start + 11]));
+                if (LooksLikeVideoId(id) && ends)
+                    return std::string(id);
+            }
+            return {};
+        }
+
+        // How long a connected session may stay silent, with no viewer count,
+        // before /live is asked again whether it points somewhere else.
+        constexpr auto SilentSessionCheck = std::chrono::minutes(2);
+
         std::string Trim(std::string_view value) {
             auto first = value.find_first_not_of(" \t\r\n");
             if (first == std::string_view::npos)
@@ -39,8 +62,15 @@ namespace StandaloneStreamChat::Chat {
         }
 
         std::string BuildLiveUrl(std::string channel) {
-            if (channel.starts_with("http://") || channel.starts_with("https://"))
+            if (channel.starts_with("http://") || channel.starts_with("https://")) {
+                // A pasted channel link: its /live page shows the current stream.
+                channel = channel.substr(0, channel.find_first_of("?#"));
+                while (!channel.empty() && channel.back() == '/')
+                    channel.pop_back();
+                if (!channel.ends_with("/live"))
+                    channel += "/live";
                 return channel;
+            }
             if (channel.size() == 24 && channel.starts_with("UC") && std::all_of(channel.begin(), channel.end(), IsIdChar))
                 return "https://www.youtube.com/channel/" + channel + "/live";
             if (!channel.starts_with('@'))
@@ -154,7 +184,9 @@ namespace StandaloneStreamChat::Chat {
             return text;
         }
 
-        std::optional<ChatMessage> ParseItem(Json::Value const* item, RecentIds& seen) {
+        // `cutoffUsec`: messages sent earlier are YouTube's backlog and are
+        // skipped (0 keeps everything).
+        std::optional<ChatMessage> ParseItem(Json::Value const* item, RecentIds& seen, int64_t cutoffUsec) {
             auto renderer = Json::Get(item, "liveChatTextMessageRenderer");
             std::string paidAmount;
             bool isPaid = false;
@@ -181,13 +213,16 @@ namespace StandaloneStreamChat::Chat {
             if (!anyEmote)
                 chat.segments.clear();  // plain text needs no segments
 
+            auto timestamp = Json::Scalar(Json::Get(renderer, "timestampUsec"));
             auto id = Json::Scalar(Json::Get(renderer, "id"));
-            if (id.empty()) {
-                auto timestamp = Json::Scalar(Json::Get(renderer, "timestampUsec"));
-                if (!timestamp.empty())
-                    id = "fallback:" + timestamp + ":" + chat.author + ":" + chat.text;
-            }
+            if (id.empty() && !timestamp.empty())
+                id = "fallback:" + timestamp + ":" + chat.author + ":" + chat.text;
             if (!id.empty() && !seen.Insert(id))
+                return std::nullopt;
+            // A new session's first poll replays recent chat. Twitch and Kick
+            // only show what's sent once connected, so skip the older lines
+            // (still remembered as seen above).
+            if (cutoffUsec > 0 && !timestamp.empty() && std::strtoll(timestamp.c_str(), nullptr, 10) < cutoffUsec)
                 return std::nullopt;
             chat.messageId = id;
 
@@ -215,36 +250,54 @@ namespace StandaloneStreamChat::Chat {
     YouTubeChatClient::~YouTubeChatClient() { Stop(); }
 
     void YouTubeChatClient::Run() {
+        using namespace std::chrono;
+        // Anything sent before now is backlog. Two seconds of slack covers a
+        // headset clock running slightly ahead of YouTube's.
+        _startedUsec = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count() - 2'000'000;
+        // /live can lag a stream that has just started, so a channel that
+        // isn't live (or whose chat won't load) is checked often at first.
+        constexpr int OfflineDelays[] = {15, 30, 60, 120};
+        constexpr int BootstrapDelays[] = {5, 15, 30, 60};
         int errorDelaySeconds = 2;
+        int offlineChecks = 0;
+        int bootstrapFailures = 0;
         bool reportedOffline = false;
+        auto fixedVideo = VideoIdFromInput(_channel);
         while (!_stopping) {
             SetViewerSession({});  // each pass starts a new session
             try {
                 Net::HttpClient http(_stopping);
-                auto videoId = LooksLikeVideoId(_channel) ? _channel : ResolveLiveVideoId(http);
+                auto videoId = !fixedVideo.empty() ? fixedVideo : ResolveLiveVideoId(http);
                 if (videoId.empty()) {
                     _viewers = -1;
-                    // Checked every 2 minutes; only say so once per offline stretch.
+                    // Only say so once per offline stretch.
                     if (!reportedOffline)
-                        _onStatus(fmt::format("YouTube: {} is not live - checking every 2 minutes", _channel));
+                        _onStatus(fmt::format("YouTube: {} is not live - will connect when it is", _channel));
                     reportedOffline = true;
-                    SleepFor(std::chrono::minutes(2));
+                    SleepFor(seconds(OfflineDelays[std::min(offlineChecks++, 3)]));
                     continue;
                 }
                 reportedOffline = false;
+                offlineChecks = 0;
 
                 if (!Bootstrap(http, videoId)) {
-                    _onStatus("YouTube: live chat unavailable - retrying in 60s");
-                    SleepFor(std::chrono::seconds(60));
+                    int delay = BootstrapDelays[std::min(bootstrapFailures++, 3)];
+                    _onStatus(fmt::format("YouTube: live chat unavailable - retrying in {}s", delay));
+                    SleepFor(seconds(delay));
                     continue;
                 }
+                bootstrapFailures = 0;
                 _onStatus(fmt::format("YouTube: connected to live chat ({})", videoId));
                 SetViewerSession({videoId, _apiKey, _clientVersion});
                 errorDelaySeconds = 2;
 
+                auto lastMessage = steady_clock::now();
+                auto nextCheck = lastMessage + SilentSessionCheck;
                 while (!_stopping) {
                     auto result = Poll(http);
                     for (auto& message : result.messages) {
+                        if (message.event == ChatEvent::Message)
+                            lastMessage = steady_clock::now();
                         message.channelId = videoId;
                         message.channelName = _channel;
                         message.isMention = message.event == ChatEvent::Message && ContainsMention(message.text, _channel);
@@ -256,11 +309,31 @@ namespace StandaloneStreamChat::Chat {
                     if (!result.valid) {
                         _viewers = -1;
                         _onStatus("YouTube: chat ended or reset - reconnecting");
-                        SleepFor(std::chrono::seconds(errorDelaySeconds));
+                        SleepFor(seconds(errorDelaySeconds));
                         errorDelaySeconds = std::min(errorDelaySeconds * 2, 120);
                         break;
                     }
-                    SleepFor(std::chrono::milliseconds(std::clamp(result.timeoutMs, MinPollDelayMs, MaxPollDelayMs)));
+                    // A session with no messages and no viewer count may be on the
+                    // wrong video: /live can point at a previous or scheduled stream
+                    // for a while. After 2 silent minutes, ask /live again.
+                    auto now = steady_clock::now();
+                    if (fixedVideo.empty() && now >= nextCheck) {
+                        nextCheck = now + SilentSessionCheck;
+                        if (now - lastMessage >= SilentSessionCheck && _viewers < 0) {
+                            std::string current;
+                            try {
+                                current = ResolveLiveVideoId(http);
+                            } catch (std::exception const& ex) {
+                                DEBUG("YouTube: live recheck failed: {}", ex.what());
+                            }
+                            if (!current.empty() && current != videoId) {
+                                INFO("YouTube: /live now points at {} instead of {}", current, videoId);
+                                _onStatus("YouTube: found the channel's current stream - reconnecting");
+                                break;
+                            }
+                        }
+                    }
+                    SleepFor(milliseconds(std::clamp(result.timeoutMs, MinPollDelayMs, MaxPollDelayMs)));
                 }
             } catch (std::exception const& ex) {
                 if (_stopping)
@@ -289,12 +362,14 @@ namespace StandaloneStreamChat::Chat {
         if (!response.Ok())
             throw std::runtime_error(fmt::format("live page HTTP {}", response.status));
 
-        constexpr std::string_view watch = "https://www.youtube.com/watch?v=";
+        // No canonical link at all means YouTube served some other page (a
+        // consent or bot check, or a new layout), not "offline": treat it as
+        // an error, which retries within seconds.
         auto href = ExtractBetween(response.body, canonical, "\"");
-        if (!href.starts_with(watch))
-            return {};  // canonical is the channel page: not live
-        auto id = href.substr(watch.size(), 11);
-        return LooksLikeVideoId(id) ? id : std::string();
+        if (href.empty())
+            throw std::runtime_error(fmt::format("live page has no canonical link ({} KB)", response.body.size() / 1024));
+        DEBUG("YouTube: /live for {} points at {}", _channel, href);
+        return VideoIdFromInput(href);  // empty when it's the channel page: not live
     }
 
     bool YouTubeChatClient::Bootstrap(Net::HttpClient& http, std::string const& videoId) {
@@ -315,16 +390,20 @@ namespace StandaloneStreamChat::Chat {
             _clientVersion = ExtractBetween(html, "\"clientVersion\":\"", "\"");
         auto initialData = ExtractYtInitialData(html);
         if (_apiKey.empty() || _clientVersion.empty() || initialData.empty()) {
-            DEBUG("YouTube: bootstrap failed: apiKey={} clientVersion={} initialData={}", !_apiKey.empty(), !_clientVersion.empty(),
-                  !initialData.empty());
+            WARNING("YouTube: chat page for {} is missing apiKey={} clientVersion={} initialData={} ({} KB)", videoId, !_apiKey.empty(),
+                    !_clientVersion.empty(), !initialData.empty(), html.size() / 1024);
             return false;
         }
 
         rapidjson::Document doc;
         doc.Parse(initialData.data(), initialData.size());
-        if (doc.HasParseError())
+        if (doc.HasParseError()) {
+            WARNING("YouTube: chat page data for {} didn't parse", videoId);
             return false;
+        }
         _continuation = FindInitialContinuation(&doc);
+        if (_continuation.empty())
+            WARNING("YouTube: chat page for {} has no chat continuation (chat off, or not a live chat)", videoId);
         return !_continuation.empty();
     }
 
@@ -423,7 +502,7 @@ namespace StandaloneStreamChat::Chat {
                     continue;
                 }
                 auto item = Json::Path(&action, {"addChatItemAction", "item"});
-                if (auto message = ParseItem(item, *_seen))
+                if (auto message = ParseItem(item, *_seen, _startedUsec))
                     result.messages.push_back(std::move(*message));
             }
         }

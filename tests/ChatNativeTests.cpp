@@ -40,6 +40,7 @@ using namespace StandaloneStreamChat;
 std::string wire;
 bool received = false;
 std::string imageBytes = "image bytes";
+std::string youTubeBody;  // replaces the default YouTube poll reply when set
 std::atomic<int> ffzStatus{200}, httpCalls{0}, channelCalls{0};
 void Check(bool condition, char const* reason) {
     if (!condition) { std::cerr << "FAIL: " << reason << '\n'; std::exit(1); }
@@ -88,6 +89,8 @@ HttpClient::Response HttpClient::Get(std::string const& url, std::vector<std::st
 }
 HttpClient::Response HttpClient::PostJson(std::string const& url, std::string_view, std::vector<std::string> const&) {
     ++Fixture::httpCalls;
+    if (url.find("youtube") != std::string::npos && !Fixture::youTubeBody.empty())
+        return {200, Fixture::youTubeBody};
     if (url.find("youtube") != std::string::npos)
         return {200, R"({"continuationContents":{"liveChatContinuation":{"continuations":[{"invalidationContinuationData":{"continuation":"next","timeoutMs":1000}}],"actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"yt1","authorExternalChannelId":"u1","authorName":{"simpleText":"Alice"},"message":{"runs":[{"text":"hello"}]},"authorBadges":[{"liveChatAuthorBadgeRenderer":{"tooltip":"Member","customThumbnail":{"thumbnails":[{"url":"https://fixture/member.png"}]}}}]}}}},{"removeChatItemAction":{"targetItemId":"yt1"}},{"markChatItemsByAuthorAsDeletedAction":{"externalChannelId":"u2"}}]}}})"};
     return {200, R"({"data":{"badges":[{"setID":"vip","version":"1","imageURL":"https://fixture/vip.png"}],"user":{"id":"1234","broadcastBadges":[{"setID":"subscriber","version":"12","imageURL":"https://fixture/sub.png"}]}}})"};
@@ -142,6 +145,16 @@ void OtherPlatforms() {
     Check(result.valid && result.messages.size() == 3, "YouTube ordered message/delete/user-purge actions");
     Check(result.messages[0].messageId == "yt1" && result.messages[0].userId == "u1" && result.messages[0].badges[0].imageUrl == "https://fixture/member.png", "YouTube identity and member badge");
     Check(result.messages[1].event == ChatEvent::RemoveMessage && result.messages[1].messageId == "yt1" && result.messages[2].userId == "u2", "YouTube deletion targets");
+    // A new session's first poll replays chat sent before the client started; only newer lines show.
+    Fixture::youTubeBody = R"({"continuationContents":{"liveChatContinuation":{"continuations":[{"invalidationContinuationData":{"continuation":"next","timeoutMs":1000}}],"actions":[)"
+                           R"({"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"old","timestampUsec":"1000","authorName":{"simpleText":"Bob"},"message":{"runs":[{"text":"before"}]}}}}},)"
+                           R"({"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"new","timestampUsec":"9000","authorName":{"simpleText":"Bob"},"message":{"runs":[{"text":"after"}]}}}}}]}}})";
+    YouTubeChatClient late("@fixture", std::make_shared<RecentIds>(20), [](ChatMessage) {}, [](std::string) {});
+    late._startedUsec = 5000;
+    auto backlog = late.Poll(http);
+    Check(backlog.valid && backlog.messages.size() == 1 && backlog.messages[0].messageId == "new", "YouTube skips chat sent before it started");
+    Check(late.Poll(http).messages.empty(), "skipped YouTube backlog stays seen");
+    Fixture::youTubeBody.clear();
     std::deque<ChatMessage> history;
     KickChatClient kick("fixture", [&](ChatMessage m) { if (m.event == ChatEvent::Message) history.push_back(std::move(m)); else ApplyModeration(history, m); }, [](std::string) {});
     kick._chatroomId = "1234";

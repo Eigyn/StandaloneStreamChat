@@ -54,5 +54,9 @@ namespace StandaloneStreamChat::Chat {
         std::string _clientVersion;
         std::string _continuation;
         int _messageCount = 0;
+        // When this client started, in microseconds since the epoch. Messages
+        // sent before it are YouTube's backlog and aren't shown, the way
+        // Twitch and Kick only show chat from after connecting. 0 shows all.
+        int64_t _startedUsec = 0;
     };
 }

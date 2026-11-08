@@ -6,7 +6,7 @@
   "info": {
     "name": "StandaloneStreamChat",
     "id": "StandaloneStreamChat",
-    "version": "0.10.0-4",
+    "version": "0.10.0-5",
     "url": "https://github.com/Eigyn/StandaloneStreamChat",
     "additionalData": {
       "overrideSoName": "libStandaloneStreamChat.so",
