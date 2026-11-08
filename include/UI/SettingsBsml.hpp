@@ -5,6 +5,8 @@
 namespace StandaloneStreamChat::UI {
     // The settings screen: tabs, labels, ranges and hints.
     // Values bind to SettingsHost properties (C++ names, so camelCase ids).
+    // A modifier-container doesn't size its children, so a plain <text> in
+    // one needs size-delta-y; otherwise it keeps TMP's default 50-unit height.
     inline constexpr std::string_view SettingsBsml = R"BSML(
 <vertical child-control-height='false'>
   <tab-selector tab-tag='tabs'/>
@@ -61,7 +63,7 @@ namespace StandaloneStreamChat::UI {
       <toggle-setting text='Show Viewer Counts' value='showViewerCounts' apply-on-change='true' hover-hint='Live viewer numbers per platform at the top of the panel'/>
       <toggle-setting text='Show System Messages' value='showSystem' apply-on-change='true' hover-hint='Connection status lines in the chat feed'/>
       <button text='Recenter Window' on-click='recenterWindow' pref-width='46' pref-height='8' hover-hint='Move the chat panel back to its default position.'/>
-      <text text='v)BSML" VERSION R"BSML(' font-size='3' align='Center' font-color='#999999' word-wrapping='false' pref-height='4'/>
+      <text text='v)BSML" VERSION R"BSML(' font-size='3' align='Center' font-color='#999999' word-wrapping='false' size-delta-y='4'/>
     </modifier-container>
   </tab>
 </vertical>
