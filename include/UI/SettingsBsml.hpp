@@ -61,7 +61,7 @@ namespace StandaloneStreamChat::UI {
       <toggle-setting text='Show Viewer Counts' value='showViewerCounts' apply-on-change='true' hover-hint='Live viewer numbers per platform at the top of the panel'/>
       <toggle-setting text='Show System Messages' value='showSystem' apply-on-change='true' hover-hint='Connection status lines in the chat feed'/>
       <button text='Recenter Window' on-click='recenterWindow' pref-width='46' pref-height='8' hover-hint='Move the chat panel back to its default position.'/>
-      <text text='v)BSML" VERSION R"BSML(' font-size='3' align='Center' font-color='#999999'/>
+      <text text='v)BSML" VERSION R"BSML(' font-size='3' align='Center' font-color='#999999' word-wrapping='false' pref-height='4'/>
     </modifier-container>
   </tab>
 </vertical>
