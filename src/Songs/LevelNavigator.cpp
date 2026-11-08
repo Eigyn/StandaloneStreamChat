@@ -121,12 +121,14 @@ namespace StandaloneStreamChat::Songs {
             }
             if (state.phase == SelectionState::Phase::OpenSolo) {
                 if (MenuState::AtMainMenuRoot()) {
+                    // Wait for SongCore's levels, then open straight into All
+                    // Songs, where every request is selected.
                     auto pack = SongCore::API::Loading::GetCustomLevelPack();
                     if (!pack)
                         return SelectionResult::Pending;
                     auto initial = GlobalNamespace::LevelSelectionFlowCoordinator::State::New_ctor(pack, level);
                     initial->levelCategory.hasValue = true;
-                    initial->levelCategory.value = Category::CustomSongs;
+                    initial->levelCategory.value = Category::All;
                     solo->Setup(initial);
                     main->PresentFlowCoordinator(solo, nullptr, HMUI::ViewController::AnimationDirection::Horizontal, false, false);
                     state.phase = SelectionState::Phase::ChooseAll;
@@ -161,7 +163,9 @@ namespace StandaloneStreamChat::Songs {
             auto table = view ? view->_levelCollectionTableView : nullptr;
             switch (state.phase) {
                 case SelectionState::Phase::ChooseAll: {
-                    if (table && Matches(table->_selectedBeatmapLevel, level)) {
+                    // Already selected counts only in All Songs; a selection in
+                    // Custom Songs or a pack still moves to All Songs.
+                    if (table && filtering->get_selectedLevelCategory() == Category::All && Matches(table->_selectedBeatmapLevel, level)) {
                         state.phase = SelectionState::Phase::Confirm;
                         return SelectionResult::Pending;
                     }
@@ -221,7 +225,7 @@ namespace StandaloneStreamChat::Songs {
                     return SelectionResult::Pending;
                 }
                 case SelectionState::Phase::Confirm: {
-                    if (!table || !Matches(table->_selectedBeatmapLevel, level) ||
+                    if (!table || filtering->get_selectedLevelCategory() != Category::All || !Matches(table->_selectedBeatmapLevel, level) ||
                         (!state.filteredLevelId.empty() && !ContainsOnlyRequestedLevel(table, level))) {
                         if (state.filteredLevelId.empty())
                             state.phase = SelectionState::Phase::ChooseAll;
