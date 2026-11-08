@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace SimpleBSStreamChat::Requests {
+namespace StandaloneStreamChat::Requests {
     namespace {
         constexpr std::string_view Command = "!bsr";
 

@@ -1,7 +1,7 @@
 # StandaloneStreamChat
 
 [![License: MIT-0](https://img.shields.io/badge/license-MIT--0-blue?style=flat-square)](LICENSE)
-[![Version: 0.9.4](https://img.shields.io/badge/version-v0.9.4-brightgreen?style=flat-square)](https://github.com/Eigyn/StandaloneStreamChat/releases)
+[![Version: 0.10.0](https://img.shields.io/badge/version-v0.10.0-brightgreen?style=flat-square)](https://github.com/Eigyn/StandaloneStreamChat/releases)
 
 A free Twitch, YouTube, and Kick stream chat mod for Beat Saber on Quest, packaged as
 a `.qmod`. Currently offered for Quest versions 1.40.8 and 1.45.3
@@ -23,6 +23,10 @@ StandaloneStreamChat is inspired by BeatSaberPlus and EnhancedStreamChat. See [C
 - A movable, lockable panel with adjustable size, curvature, background color, opacity, and text size.
 
 To connect to your chat, visit the `Connections` tab in the mod settings. Platforms can also be enabled and disabled here.
+
+## Upgrading from 0.9.x
+
+Version 0.10.0 changes the mod's ID from `SimpleBSStreamChat` to `StandaloneStreamChat`, so ModsBeforeFriday installs it as a separate mod instead of upgrading the old one. Remove the old SimpleBSStreamChat entry after installing. If both are installed, the chat panel shows a reminder. Your settings and saved request queue are copied over the first time the new version starts.
 
 ## Credits
 

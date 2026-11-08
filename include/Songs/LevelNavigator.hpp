@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace SimpleBSStreamChat::Songs {
+namespace StandaloneStreamChat::Songs {
     inline constexpr std::string_view ReturnToMenu = "return to the main menu or Solo and select again";
 
     // No Unity objects retained across frames.

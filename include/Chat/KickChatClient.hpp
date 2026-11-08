@@ -7,11 +7,11 @@
 #include <optional>
 #include <string>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     class HttpClient;
 }
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     /// Read-only Kick chat. Kick's official API needs an app login, so this
     /// follows the web client: look the channel up, get an anonymous guest
     /// token, then read the chatroom over Kick's Centrifugo WebSocket.

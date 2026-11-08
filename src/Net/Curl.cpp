@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     namespace {
         // The static libcurl build has no usable default CA path on Android, so
         // feed it the headset's own trusted roots. Android keeps one PEM per CA;

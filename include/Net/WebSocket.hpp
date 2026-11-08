@@ -9,7 +9,7 @@
 #include <string_view>
 #include <vector>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     /// Minimal RFC 6455 client over TlsConnection: the bundled libcurl is built
     /// without WebSocket support. Text messages only; answers pings itself.
     /// Not thread-safe. Errors throw std::runtime_error.

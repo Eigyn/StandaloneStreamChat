@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-namespace SimpleBSStreamChat::UI::Icons {
+namespace StandaloneStreamChat::UI::Icons {
     namespace {
         constexpr unsigned char LockPng[] = {
 #include "embedded/icon-lock.png.inc"

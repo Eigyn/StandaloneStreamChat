@@ -13,7 +13,7 @@
 #include "UnityEngine/SceneManagement/Scene.hpp"
 #include "UnityEngine/SceneManagement/SceneManager.hpp"
 
-namespace SimpleBSStreamChat::Songs::MenuState {
+namespace StandaloneStreamChat::Songs::MenuState {
     namespace {
         // The menu's flow coordinator when the menu is live and settled.
         GlobalNamespace::MainFlowCoordinator* SettledMenu() {

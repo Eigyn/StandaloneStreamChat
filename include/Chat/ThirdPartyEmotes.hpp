@@ -8,7 +8,7 @@
 #include <thread>
 #include <unordered_map>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     class ThirdPartyEmotes {
        public:
         struct Emote { std::string key, url, animatedUrl; };

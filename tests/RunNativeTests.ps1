@@ -20,7 +20,7 @@ $atlas = [System.IO.File]::ReadAllText((Join-Path $qmodRoot 'src/UI/EmoteAtlas.c
 $start = $atlas.IndexOf('    // One worker,')
 $end = $atlas.IndexOf('    EmoteAtlas& EmoteAtlas::Instance()')
 if ($start -lt 0 -or $end -le $start) { throw 'Production downloader boundaries changed.' }
-$downloader = 'namespace SimpleBSStreamChat::UI { constexpr size_t MaxDownloadBytes = 2 * 1024 * 1024;' + [Environment]::NewLine + $atlas.Substring($start, $end - $start) + [Environment]::NewLine + '}'
+$downloader = 'namespace StandaloneStreamChat::UI { constexpr size_t MaxDownloadBytes = 2 * 1024 * 1024;' + [Environment]::NewLine + $atlas.Substring($start, $end - $start) + [Environment]::NewLine + '}'
 [System.IO.File]::WriteAllText((Join-Path $outputRoot 'shim/Downloader-under-test.hpp'), $downloader, $utf8)
 $ndk = ([System.IO.File]::ReadAllText((Join-Path $qmodRoot 'bs-1.40.8/ndkpath.txt'))).Trim()
 $compiler = Join-Path $ndk 'toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android29-clang++.cmd'
@@ -36,14 +36,14 @@ foreach ($unit in $units) {
     if ($LASTEXITCODE -ne 0) { Get-Content -LiteralPath $compileLog -Tail 30; throw 'Native test compilation failed.' }
     $objects += $object
 }
-$binary = Join-Path $outputRoot 'sbssc-chat-native-tests'
+$binary = Join-Path $outputRoot 'ssc-chat-native-tests'
 & $compiler -static-libstdc++ -pthread @objects -o $binary *>> $compileLog
 if ($LASTEXITCODE -ne 0) { Get-Content -LiteralPath $compileLog -Tail 30; throw 'Native test linking failed.' }
 Write-Output 'Native tests compiled from production sources.'
 if ($RunOnQuest) {
     if (-not $AdbPath) { $AdbPath = (Get-Command adb -ErrorAction Stop).Source }
     $deviceArgs = @(); if ($Serial) { $deviceArgs = @('-s', $Serial) }
-    $remote = '/data/local/tmp/sbssc-chat-native-tests'
+    $remote = '/data/local/tmp/ssc-chat-native-tests'
     & $AdbPath @deviceArgs push $binary $remote
     if ($LASTEXITCODE -ne 0) { throw 'Could not stage native tests.' }
     try {

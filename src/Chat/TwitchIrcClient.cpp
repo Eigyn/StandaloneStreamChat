@@ -13,7 +13,7 @@
 #include <random>
 #include <vector>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     namespace {
         constexpr char const* Host = "irc.chat.twitch.tv";
         constexpr int Port = 6697;

@@ -3,7 +3,7 @@
 // Where the player is in the menus, shared by the request list (it dims
 // Accept), the installer (it only refreshes SongCore and opens a song where
 // that's safe) and the navigator, so they can never disagree. Main thread.
-namespace SimpleBSStreamChat::Songs::MenuState {
+namespace StandaloneStreamChat::Songs::MenuState {
     /// Any menu screen: not during a song or a menu transition.
     bool InMenu();
     /// The solo or party results screen. Accepting from it used to crash the

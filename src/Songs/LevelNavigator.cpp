@@ -3,7 +3,7 @@
 #include "logging.hpp"
 
 #include "bsml/shared/Helpers/getters.hpp"
-#ifdef SBSC_BS_1_40
+#ifdef SSC_BS_1_40
 #include "beatsaber-hook/shared/utils/byref.hpp"
 #else
 #include "beatsaber-hook/shared/byref.hpp"
@@ -33,7 +33,7 @@
 
 #include <exception>
 
-namespace SimpleBSStreamChat::Songs {
+namespace StandaloneStreamChat::Songs {
     namespace {
         using Category = GlobalNamespace::SelectLevelCategoryViewController::LevelCategory;
 
@@ -150,7 +150,7 @@ namespace SimpleBSStreamChat::Songs {
                     filter.searchText = u"";
                     filter.limitIds = ArrayW<StringW>({level->levelID});
                     state.filteredLevelId = static_cast<std::string>(level->levelID);
-#ifdef SBSC_BS_1_40
+#ifdef SSC_BS_1_40
                     search->Refresh(byref(filter));
 #else
                     search->Refresh(by_ref(filter));

@@ -4,7 +4,7 @@
 #include <string>
 #include <string_view>
 
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     /// Chat text (and anything else viewers control) is untrusted: wraps it so
     /// TMP shows it literally instead of reading it as rich-text tags.
     inline std::string Escape(std::string_view text) {

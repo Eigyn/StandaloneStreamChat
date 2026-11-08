@@ -6,7 +6,7 @@
 
 typedef void CURL;
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     /// A raw TLS byte stream (libcurl CONNECT_ONLY), used for Twitch IRC and
     /// under WebSocket.
     /// Not thread-safe: one thread connects, sends and receives. Every call

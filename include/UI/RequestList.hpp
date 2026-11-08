@@ -14,7 +14,7 @@
 // rows filling the feed area, scrolled one request at a time by the arrows
 // on a strip outside the panel's right edge (shown only when the queue
 // overflows), with a bar marking where the view is.
-DECLARE_CLASS_CODEGEN(SimpleBSStreamChat, RequestList, UnityEngine::MonoBehaviour) {
+DECLARE_CLASS_CODEGEN(StandaloneStreamChat, RequestList, UnityEngine::MonoBehaviour) {
     DECLARE_INSTANCE_FIELD(UnityEngine::RectTransform*, _rect);
     DECLARE_INSTANCE_FIELD(UnityEngine::RectTransform*, _rows);  // RequestRows, top to bottom
     DECLARE_INSTANCE_FIELD(TMPro::TextMeshProUGUI*, _emptyLabel);

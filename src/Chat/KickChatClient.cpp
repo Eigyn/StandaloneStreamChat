@@ -12,7 +12,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     namespace {
         constexpr char const* RealtimeApi = "https://web.kick.com/api/v1/realtime";
         // Fallback when the realtime lookup fails; it returned this server for every channel tried.

@@ -11,10 +11,10 @@
 #include <array>
 #include <cctype>
 
-DEFINE_TYPE(SimpleBSStreamChat, SettingsHost);
+DEFINE_TYPE(StandaloneStreamChat, SettingsHost);
 
 namespace {
-    using namespace SimpleBSStreamChat;
+    using namespace StandaloneStreamChat;
     using Chat::ChatPlatform;
 
     std::array<int, 4> channelEditGenerations{};
@@ -68,7 +68,7 @@ namespace {
     }
 }
 
-namespace SimpleBSStreamChat {
+namespace StandaloneStreamChat {
     StringW SettingsHost::get_twitchChannel() { return GetConfig().twitchChannel; }
     void SettingsHost::set_twitchChannel(StringW value) { SetChannel(ChatPlatform::Twitch, &Config::twitchChannel, value); }
     bool SettingsHost::get_enableTwitch() { return GetConfig().enableTwitch; }

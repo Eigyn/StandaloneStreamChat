@@ -5,7 +5,7 @@
 #include <string>
 #include <unordered_set>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     /// Bounded, thread-safe set of recently seen message ids, oldest evicted
     /// first. Used to drop duplicates across subscriptions and reconnects.
     class RecentIds {

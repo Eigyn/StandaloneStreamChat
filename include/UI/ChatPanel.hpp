@@ -32,7 +32,7 @@
 // Moving: while unlocked, pressing anywhere on the backdrop grabs the panel.
 // The press reaches this component by bubbling up from the backdrop graphic;
 // BSML's 3D grab handle never received pointer hits on this screen.
-DECLARE_CLASS_CODEGEN_INTERFACES(SimpleBSStreamChat, ChatPanel, UnityEngine::MonoBehaviour,
+DECLARE_CLASS_CODEGEN_INTERFACES(StandaloneStreamChat, ChatPanel, UnityEngine::MonoBehaviour,
                                  UnityEngine::EventSystems::IPointerDownHandler*, UnityEngine::EventSystems::IPointerUpHandler*,
                                  UnityEngine::EventSystems::IEventSystemHandler*) {
     DECLARE_INSTANCE_FIELD(BSML::FloatingScreen*, _screen);

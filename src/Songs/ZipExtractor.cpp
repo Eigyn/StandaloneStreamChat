@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace SimpleBSStreamChat::Songs {
+namespace StandaloneStreamChat::Songs {
     namespace {
         constexpr uint32_t EndOfCentralDirectorySignature = 0x06054b50;
         constexpr uint32_t CentralHeaderSignature = 0x02014b50;

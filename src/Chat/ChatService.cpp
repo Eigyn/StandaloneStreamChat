@@ -7,7 +7,7 @@
 #include <exception>
 #include <memory>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     ChatService::ChatService(MessageHandler onMessage, StatusHandler onStatus)
         : _onMessage(std::move(onMessage)), _onStatus(std::move(onStatus)) {}
 

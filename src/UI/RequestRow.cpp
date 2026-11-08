@@ -26,10 +26,10 @@
 #include <algorithm>
 #include <functional>
 
-DEFINE_TYPE(SimpleBSStreamChat, RequestRow);
+DEFINE_TYPE(StandaloneStreamChat, RequestRow);
 
 namespace {
-    using namespace SimpleBSStreamChat;
+    using namespace StandaloneStreamChat;
     using Requests::RequestStatus;
     using Requests::SongRequest;
 
@@ -135,7 +135,7 @@ namespace {
     }
 }
 
-namespace SimpleBSStreamChat {
+namespace StandaloneStreamChat {
     RequestRow* RequestRow::Create(UnityEngine::Transform* parent) {
         auto go = UnityEngine::GameObject::New_ctor("RequestRow");
         auto rect = go->AddComponent<UnityEngine::RectTransform*>();

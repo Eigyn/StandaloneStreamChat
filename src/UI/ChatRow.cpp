@@ -12,9 +12,9 @@
 #include "UnityEngine/RectTransform.hpp"
 #include "UnityEngine/UI/HorizontalLayoutGroup.hpp"
 
-DEFINE_TYPE(SimpleBSStreamChat, ChatRow);
+DEFINE_TYPE(StandaloneStreamChat, ChatRow);
 
-namespace SimpleBSStreamChat {
+namespace StandaloneStreamChat {
     ChatRow* ChatRow::Create(UnityEngine::Transform* parent) {
         auto go = UnityEngine::GameObject::New_ctor("ChatRow");
         auto rect = go->AddComponent<UnityEngine::RectTransform*>();

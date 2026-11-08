@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <span>
 
-namespace SimpleBSStreamChat::Songs {
+namespace StandaloneStreamChat::Songs {
     /// Writes every file of the zip held in `data` under `folder` (created as
     /// needed), inflating with the system zlib. Handles stored and deflated
     /// entries, which is all BeatSaver serves. Rejects encrypted and ZIP64

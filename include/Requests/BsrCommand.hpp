@@ -3,7 +3,7 @@
 #include <string>
 #include <string_view>
 
-namespace SimpleBSStreamChat::Requests {
+namespace StandaloneStreamChat::Requests {
     struct BsrCommand {
         bool isCommand = false;  // the message starts with !bsr (a request attempt)
         std::string key;         // the validated map key; empty when missing or invalid

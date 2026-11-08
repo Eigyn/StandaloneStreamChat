@@ -52,10 +52,10 @@
 #include <deque>
 #include <span>
 
-DEFINE_TYPE(SimpleBSStreamChat, ChatPanel);
+DEFINE_TYPE(StandaloneStreamChat, ChatPanel);
 
 namespace {
-    using namespace SimpleBSStreamChat;
+    using namespace StandaloneStreamChat;
     using Chat::ChatMessage;
     using Chat::ChatPlatform;
 
@@ -276,7 +276,7 @@ namespace {
     }
 }
 
-namespace SimpleBSStreamChat {
+namespace StandaloneStreamChat {
     void ChatPanel::EnsureCreated() {
         if (instance)
             return;
@@ -290,7 +290,7 @@ namespace SimpleBSStreamChat {
             {config.rotationX, config.rotationY, 0.0f},
             0.0f, true, false);
         auto screenGo = screen->get_gameObject();
-        screenGo->set_name("SimpleBSStreamChatPanel");
+        screenGo->set_name("StandaloneStreamChatPanel");
         UnityEngine::Object::DontDestroyOnLoad(screenGo);
 
         // BSML clips the whole screen to its rect, which would hide (and block
@@ -645,7 +645,7 @@ namespace SimpleBSStreamChat {
             _curvedTextMaterial = BSML::Helpers::GetMainUIFontMaterial();
         if (!_flatTextMaterial && _curvedTextMaterial) {
             _flatTextMaterial = UnityEngine::Material::New_ctor(_curvedTextMaterial);
-            _flatTextMaterial->set_name(_curvedTextMaterial->get_name() + " (SimpleBSStreamChat Flat)");
+            _flatTextMaterial->set_name(_curvedTextMaterial->get_name() + " (StandaloneStreamChat Flat)");
             _flatTextMaterial->DisableKeyword("CURVED");
         }
         return GetConfig().curveAmount > 0.0f ? _curvedTextMaterial : _flatTextMaterial;

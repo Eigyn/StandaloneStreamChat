@@ -43,8 +43,8 @@ try {
     if (-not $manifestEntry) { throw 'The QMOD has no mod.json.' }
     $reader = [System.IO.StreamReader]::new($manifestEntry.Open())
     try { $manifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
-    # Retain the package ID so the renamed mod upgrades existing installs.
-    if ($manifest.id -ne 'SimpleBSStreamChat' -or $manifest.name -ne 'StandaloneStreamChat' -or
+    # 0.10.0 moved the package ID from SimpleBSStreamChat to StandaloneStreamChat.
+    if ($manifest.id -ne 'StandaloneStreamChat' -or $manifest.name -ne 'StandaloneStreamChat' -or
         $manifest.packageVersion -ne $target.PackageVersion) {
         throw "The QMOD does not match the $GameVersion release target."
     }

@@ -4,7 +4,7 @@
 #include <charconv>
 #include <string_view>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     inline uint64_t UnsignedNumber(std::string_view text) {
         uint64_t value = 0;
         auto result = std::from_chars(text.data(), text.data() + text.size(), value);

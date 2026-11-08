@@ -9,7 +9,7 @@
 #include <fstream>
 #include <iterator>
 
-namespace SimpleBSStreamChat {
+namespace StandaloneStreamChat {
     namespace {
         Config config;
 
@@ -45,6 +45,25 @@ namespace SimpleBSStreamChat {
             Read(obj, key, value);
             out = value;
         }
+
+        // Before 0.10.0 the mod's ID was SimpleBSStreamChat, and its saved
+        // files carried that name. They're copied once, so settings and the
+        // queue carry over; the originals stay for anyone going back.
+        constexpr std::string_view LegacyId = "SimpleBSStreamChat";
+
+        void CopyLegacyFile(std::string_view suffix) {
+            auto directory = ConfigDirectory();
+            auto from = directory / (std::string(LegacyId) + std::string(suffix));
+            auto to = directory / (std::string(MOD_ID) + std::string(suffix));
+            std::error_code ec;
+            if (std::filesystem::exists(to, ec) || !std::filesystem::exists(from, ec))
+                return;
+            std::filesystem::copy_file(from, to, ec);
+            if (ec)
+                WARNING("Could not copy {} to {}: {}", from.string(), to.string(), ec.message());
+            else
+                INFO("Copied {} from {}", to.filename().string(), from.filename().string());
+        }
     }
 
     Config& GetConfig() { return config; }
@@ -75,6 +94,9 @@ namespace SimpleBSStreamChat {
     }
 
     void LoadConfig() {
+        CopyLegacyFile(".json");
+        CopyLegacyFile(".Requests.json");  // read later by SongRequestManager::Start
+
         auto path = ConfigPath();
         std::ifstream file(path, std::ios::binary);
         if (!file) {

@@ -4,7 +4,7 @@
 #include <cctype>
 #include <stdexcept>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     namespace {
         struct WriteState {
             std::string* body;

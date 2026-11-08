@@ -5,11 +5,11 @@
   "dependenciesDir": "extern",
   "info": {
     "name": "StandaloneStreamChat",
-    "id": "SimpleBSStreamChat",
-    "version": "0.9.4",
+    "id": "StandaloneStreamChat",
+    "version": "0.10.0",
     "url": "https://github.com/Eigyn/StandaloneStreamChat",
     "additionalData": {
-      "overrideSoName": "libSimpleBSStreamChat.so",
+      "overrideSoName": "libStandaloneStreamChat.so",
       "cmake": true
     }
   },

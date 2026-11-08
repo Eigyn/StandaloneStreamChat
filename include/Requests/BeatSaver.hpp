@@ -2,11 +2,11 @@
 
 #include <string>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     class HttpClient;
 }
 
-namespace SimpleBSStreamChat::Requests {
+namespace StandaloneStreamChat::Requests {
     struct MapInfo {
         std::string songName;
         std::string songAuthor;

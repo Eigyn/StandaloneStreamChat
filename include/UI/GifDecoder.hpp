@@ -4,7 +4,7 @@
 #include <span>
 #include <vector>
 
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     inline constexpr size_t MaxAnimationBytes = 512 * 1024;
     inline constexpr size_t MaxResidentAnimationBytes = 2 * 1024 * 1024;
     inline constexpr size_t MaxAnimatedEmotes = 4;

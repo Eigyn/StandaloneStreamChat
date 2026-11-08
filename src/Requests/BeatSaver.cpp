@@ -6,7 +6,7 @@
 #include <cctype>
 #include <exception>
 
-namespace SimpleBSStreamChat::Requests {
+namespace StandaloneStreamChat::Requests {
     namespace {
         namespace Json = Chat::Json;
 

@@ -8,7 +8,7 @@
 
 // Null-safe reads over rapidjson, for the loosely-specified JSON that YouTube
 // and Kick return: every lookup tolerates missing or wrongly-typed members.
-namespace SimpleBSStreamChat::Chat::Json {
+namespace StandaloneStreamChat::Chat::Json {
     using Value = rapidjson::Value;
 
     /// Member `key` of an object; null if absent or `value` isn't an object.

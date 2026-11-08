@@ -5,7 +5,7 @@
 #include <cmath>
 
 // GIF89a: https://www.w3.org/Graphics/GIF/spec-gif89a.txt
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     namespace {
         constexpr int MaxSide = 1024;
 

@@ -1,13 +1,12 @@
 # Builds the same sources as ../ against the Beat Saber 1.40.8 libraries
 # (bs-cordl 4008, beatsaber-hook 6, BSML 0.4, SongCore 1.1). Code that
-# differs between the two game versions checks SBSC_BS_1_40.
+# differs between the two game versions checks SSC_BS_1_40.
 
 # include some defines automatically made by qpm
 include(qpm_defines.cmake)
 
-# QPM derives MOD_ID from the display name. Preserve the installed identity
-# and saved-file names when rebranding to StandaloneStreamChat.
-set(MOD_ID "SimpleBSStreamChat")
+# MOD_ID comes from qpm_defines.cmake (the package name): it names the log
+# context, the saved files and the download folder.
 
 cmake_minimum_required(VERSION 3.22)
 project(${COMPILE_ID})
@@ -29,7 +28,7 @@ add_compile_options(-frtti -fPIE -fPIC -fexceptions -fdeclspec -fvisibility=hidd
 
 add_compile_definitions(VERSION="${MOD_VERSION}")
 add_compile_definitions(MOD_ID="${MOD_ID}")
-add_compile_definitions(SBSC_BS_1_40)
+add_compile_definitions(SSC_BS_1_40)
 
 # Trim source folder in logcat messages
 string(LENGTH "${PROJECT_ROOT}/" FOLDER_LENGTH)

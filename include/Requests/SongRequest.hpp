@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <string>
 
-namespace SimpleBSStreamChat::Requests {
+namespace StandaloneStreamChat::Requests {
     enum class RequestStatus {
         FetchingInfo,  // queued; BeatSaver lookup in flight (Accept disabled)
         Ready,         // map info known; Accept/Deny enabled

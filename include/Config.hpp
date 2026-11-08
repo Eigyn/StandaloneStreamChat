@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace SimpleBSStreamChat {
+namespace StandaloneStreamChat {
     /// A setting the chat and request threads also read. The settings screen
     /// writes it on the main thread, so loads and stores are atomic.
     template <typename T>

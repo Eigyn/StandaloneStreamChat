@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <deque>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     // Called under ChatManager's history lock. Control events share the same
     // callback/order as messages, and never enter the rendered history.
     inline bool ApplyModeration(std::deque<ChatMessage>& messages, ChatMessage const& event) {

@@ -17,14 +17,14 @@
 #include <unordered_map>
 #include <vector>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     class HttpClient;
 }
-namespace SimpleBSStreamChat::Songs {
+namespace StandaloneStreamChat::Songs {
     class MapInstaller;
 }
 
-namespace SimpleBSStreamChat::Requests {
+namespace StandaloneStreamChat::Requests {
     struct MapLookup;
 
     /// The song-request queue. "!bsr" commands arrive on the chat threads; a

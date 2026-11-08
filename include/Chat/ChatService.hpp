@@ -9,11 +9,11 @@
 #include <string>
 #include <thread>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     class HttpClient;
 }
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     /// One platform's chat connection, run on its own background thread.
     /// Callbacks fire on that thread. The viewer count is polled on a second
     /// thread, so a slow count request never holds up chat or keepalive

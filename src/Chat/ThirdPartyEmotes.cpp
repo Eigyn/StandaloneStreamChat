@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     namespace {
         constexpr size_t MaxProviderEmotes = 1024, MaxMergedEmotes = 2048, MaxBadges = 2048, MaxMetadataBytes = 4 * 1024 * 1024;
         using EmoteMap = ThirdPartyEmotes::EmoteMap;

@@ -29,10 +29,10 @@
 #include <cmath>
 #include <functional>
 
-DEFINE_TYPE(SimpleBSStreamChat, RequestList);
+DEFINE_TYPE(StandaloneStreamChat, RequestList);
 
 namespace {
-    using namespace SimpleBSStreamChat;
+    using namespace StandaloneStreamChat;
 
     // In panel units.
     constexpr float RowSpacing = 0.8f;
@@ -104,7 +104,7 @@ namespace {
     }
 }
 
-namespace SimpleBSStreamChat {
+namespace StandaloneStreamChat {
     RequestList* RequestList::Create(UnityEngine::RectTransform* content, UnityEngine::RectTransform* screen, HMUI::ImageView* backdrop) {
         auto rect = NewRect(content, "RequestsContent");
         Stretch(rect);

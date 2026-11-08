@@ -24,7 +24,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace SimpleBSStreamChat::Requests {
+namespace StandaloneStreamChat::Requests {
     namespace {
         using namespace std::chrono_literals;
         using Chat::ChatMessage;
@@ -43,7 +43,7 @@ namespace SimpleBSStreamChat::Requests {
         // that was selected before; give that time to land before ours.
         constexpr float SongListSettle = 0.25f;
 
-        std::filesystem::path StoredQueuePath() { return modloader::get_external_dir() / "Configs" / (MOD_ID ".Requests.json"); }
+        std::filesystem::path StoredQueuePath() { return ConfigDirectory() / (MOD_ID ".Requests.json"); }
 
         std::string_view PlatformName(ChatPlatform platform) {
             switch (platform) {

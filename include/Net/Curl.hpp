@@ -5,7 +5,7 @@
 
 #include <atomic>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     /// Browser-like UA: YouTube and Kick serve different (or no) pages to
     /// unknown clients.
     inline constexpr char const* BrowserUserAgent =

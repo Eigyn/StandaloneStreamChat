@@ -4,7 +4,7 @@
 
 #include <string_view>
 
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     /// TMP rich-text tag standing in for a platform icon, with a trailing
     /// space; the fallback when the icons are unavailable.
     inline std::string_view PlatformTag(Chat::ChatPlatform platform) {

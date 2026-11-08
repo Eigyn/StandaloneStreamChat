@@ -13,7 +13,7 @@
 #include "UnityEngine/TextAnchor.hpp"
 #include "UnityEngine/UI/HorizontalLayoutGroup.hpp"
 
-DEFINE_TYPE(SimpleBSStreamChat, ViewerCountView);
+DEFINE_TYPE(StandaloneStreamChat, ViewerCountView);
 
 namespace {
     // "5,605"; an en dash while unknown or offline.
@@ -31,7 +31,7 @@ namespace {
     }
 }
 
-namespace SimpleBSStreamChat {
+namespace StandaloneStreamChat {
     ViewerCountView* ViewerCountView::Create(UnityEngine::Transform* parent, Chat::ChatPlatform platform) {
         auto go = UnityEngine::GameObject::New_ctor("ViewerCount");
         go->AddComponent<UnityEngine::RectTransform*>()->SetParent(parent, false);

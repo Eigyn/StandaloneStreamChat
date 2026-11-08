@@ -9,7 +9,7 @@
 // Binding target for SettingsBsml. Each property reads and writes the config
 // directly (the generated backing fields stay unused) and applies the change
 // right away. Lives on the settings view controller's GameObject.
-DECLARE_CLASS_CODEGEN(SimpleBSStreamChat, SettingsHost, UnityEngine::MonoBehaviour) {
+DECLARE_CLASS_CODEGEN(StandaloneStreamChat, SettingsHost, UnityEngine::MonoBehaviour) {
     // Connections
     DECLARE_BSML_PROPERTY(StringW, twitchChannel);
     DECLARE_BSML_PROPERTY(bool, enableTwitch);

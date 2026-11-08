@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     enum class ChatPlatform { System, Twitch, YouTube, Kick };
     enum class ChatEvent { Message, RemoveMessage, RemoveUser, ClearChannel, ChannelIdentity };
 

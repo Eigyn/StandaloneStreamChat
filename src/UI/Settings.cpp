@@ -64,7 +64,7 @@ namespace {
         text->set_richText(false);
         text->set_overflowMode(TMPro::TextOverflowModes::Ellipsis);
         text->set_raycastTarget(false);
-        SimpleBSStreamChat::SetWordWrap(text, false);
+        StandaloneStreamChat::SetWordWrap(text, false);
         auto textRect = text->get_rectTransform();
         textRect->set_anchorMin({0.0f, 0.0f});
         textRect->set_anchorMax({1.0f, 1.0f});
@@ -97,7 +97,7 @@ namespace {
     }
 }
 
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     void SettingsDidActivate(HMUI::ViewController* self, bool firstActivation, bool, bool) {
         if (!firstActivation)
             return;

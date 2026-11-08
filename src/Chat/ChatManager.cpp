@@ -14,7 +14,7 @@
 #include <optional>
 #include <thread>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     namespace {
         constexpr ChatPlatform Platforms[] = {ChatPlatform::Twitch, ChatPlatform::YouTube, ChatPlatform::Kick};
 
@@ -178,8 +178,8 @@ namespace SimpleBSStreamChat::Chat {
             Requests::SongRequestManager::Instance().OnChatMessage(*command);
     }
 
-    void ChatManager::AddSystemMessage(std::string text) {
-        if (!GetConfig().showSystemMessages)
+    void ChatManager::AddSystemMessage(std::string text, bool always) {
+        if (!always && !GetConfig().showSystemMessages)
             return;
         ChatMessage message;
         message.platform = ChatPlatform::System;

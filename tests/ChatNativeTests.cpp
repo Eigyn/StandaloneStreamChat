@@ -36,7 +36,7 @@
 #include "Downloader-under-test.hpp"
 
 namespace Fixture {
-using namespace SimpleBSStreamChat;
+using namespace StandaloneStreamChat;
 std::string wire;
 bool received = false;
 std::string imageBytes = "image bytes";
@@ -49,10 +49,10 @@ void Wait(std::function<bool()> ready) {
     Check(ready(), "worker did not complete");
 }
 }
-namespace SimpleBSStreamChat {
+namespace StandaloneStreamChat {
 Config& GetConfig() { static Config config; config.showViewerCounts = false; return config; }
 }
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
 TlsConnection::TlsConnection(std::atomic<bool> const& stopping) : _stopping(stopping) {}
 TlsConnection::~TlsConnection() = default;
 void TlsConnection::Connect(std::string_view, int) {}
@@ -94,7 +94,7 @@ std::string UrlEncode(std::string_view value) { return std::string(value); }
 }
 
 namespace {
-using namespace SimpleBSStreamChat;
+using namespace StandaloneStreamChat;
 using namespace Chat;
 using Fixture::Check;
 void Moderation() {
@@ -264,9 +264,9 @@ int main(int argc, char** argv) {
     if (argc == 2) {
         std::ifstream file(argv[1], std::ios::binary);
         std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), {});
-        SimpleBSStreamChat::UI::GifAnimation animation;
-        Fixture::Check(SimpleBSStreamChat::UI::DecodeGifAnimation(bytes, animation), "real provider GIF decode");
-        Fixture::Check(animation.Bytes() <= SimpleBSStreamChat::UI::MaxAnimationBytes && animation.frames.size() <= SimpleBSStreamChat::UI::MaxAnimationFrames, "real GIF memory/frame limit");
+        StandaloneStreamChat::UI::GifAnimation animation;
+        Fixture::Check(StandaloneStreamChat::UI::DecodeGifAnimation(bytes, animation), "real provider GIF decode");
+        Fixture::Check(animation.Bytes() <= StandaloneStreamChat::UI::MaxAnimationBytes && animation.frames.size() <= StandaloneStreamChat::UI::MaxAnimationFrames, "real GIF memory/frame limit");
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }

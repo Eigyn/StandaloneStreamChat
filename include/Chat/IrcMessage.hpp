@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     /// Minimal IRCv3 line parser: `@tags :prefix COMMAND params :trailing`.
     /// Pure logic, no I/O.
     struct IrcMessage {

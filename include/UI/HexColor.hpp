@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     /// "#RRGGBB" (any trailing alpha ignored) as an opaque color, or
     /// `fallback` when malformed.
     inline UnityEngine::Color ColorFromHex(std::string_view hex, UnityEngine::Color fallback) {

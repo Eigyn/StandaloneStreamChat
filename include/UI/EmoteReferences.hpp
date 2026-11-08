@@ -5,7 +5,7 @@
 #include <unordered_set>
 #include <string>
 
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     // Main-thread row lifetimes, independent of Unity so eviction can be tested.
     class EmoteReferences {
        public:

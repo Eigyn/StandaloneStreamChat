@@ -37,7 +37,7 @@
 #include <thread>
 #include <utility>
 
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     namespace {
         constexpr int AtlasSize = 1024;
         constexpr int CellContent = 64;  // pixel height every image is scaled to
@@ -232,7 +232,7 @@ namespace SimpleBSStreamChat::UI {
           _cellOwners(GridSize * GridSize),
           _downloader(std::make_unique<EmoteDownloader>()) {
         auto texture = UnityEngine::Texture2D::New_ctor(AtlasSize, AtlasSize, UnityEngine::TextureFormat::RGBA32, false);
-        texture->set_name("SimpleBSStreamChatEmotes");
+        texture->set_name("StandaloneStreamChatEmotes");
         texture->set_filterMode(UnityEngine::FilterMode::Bilinear);
         texture->set_wrapMode(UnityEngine::TextureWrapMode::Clamp);
         KeepLoaded(texture);
@@ -244,16 +244,16 @@ namespace SimpleBSStreamChat::UI {
 
         // The sprite material: a NoGlow copy over the atlas.
         auto material = UnityEngine::Material::New_ctor(BSML::Helpers::GetUINoGlowMat());
-        material->set_name("SimpleBSStreamChatEmotes");
+        material->set_name("StandaloneStreamChatEmotes");
         material->set_mainTexture(texture);
         KeepLoaded(material);
         _material = material;
 
         auto asset = UnityEngine::ScriptableObject::CreateInstance<TMPro::TMP_SpriteAsset*>();
-        asset->set_name("SimpleBSStreamChatEmotes");
+        asset->set_name("StandaloneStreamChatEmotes");
         KeepLoaded(asset);
         asset->spriteSheet = texture;
-#ifdef SBSC_BS_1_40
+#ifdef SSC_BS_1_40
         asset->material = material;  // a plain field in 1.40.8's TextMeshPro
 #else
         asset->set_material(material);

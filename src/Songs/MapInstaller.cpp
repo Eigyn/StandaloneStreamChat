@@ -10,7 +10,7 @@
 #include <cctype>
 #include <stdexcept>
 
-namespace SimpleBSStreamChat::Songs {
+namespace StandaloneStreamChat::Songs {
     namespace {
         // BeatSaver's own upload cap is far below these; they only stop a bad
         // link from filling memory or storage.

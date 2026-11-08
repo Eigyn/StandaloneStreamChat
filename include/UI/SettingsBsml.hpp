@@ -2,7 +2,7 @@
 
 #include <string_view>
 
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     // The settings screen: tabs, labels, ranges and hints.
     // Values bind to SettingsHost properties (C++ names, so camelCase ids).
     inline constexpr std::string_view SettingsBsml = R"BSML(

@@ -10,7 +10,7 @@
 #include <optional>
 #include <stdexcept>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     namespace {
         constexpr int MinPollDelayMs = 500;
         // YouTube's timeoutMs (10 s for live chat) is the browser's fallback

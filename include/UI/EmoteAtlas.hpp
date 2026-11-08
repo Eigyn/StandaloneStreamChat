@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace SimpleBSStreamChat::UI {
+namespace StandaloneStreamChat::UI {
     class EmoteDownloader;
 
     /// Emote images, plus the chat-line platform and badge icons, packed into

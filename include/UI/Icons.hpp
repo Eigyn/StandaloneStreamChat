@@ -6,7 +6,7 @@
 
 #include <span>
 
-namespace SimpleBSStreamChat::UI::Icons {
+namespace StandaloneStreamChat::UI::Icons {
     // Button art from assets/, compiled into the .so. Loaded on first use;
     // Unity's scene-change asset cleanup is told to leave them alone.
     UnityEngine::Sprite* Lock();

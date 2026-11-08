@@ -10,7 +10,7 @@
 #include <thread>
 #include <vector>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     class ChatService;
     class RecentIds;
 
@@ -30,7 +30,8 @@ namespace SimpleBSStreamChat::Chat {
         /// (for a channel change).
         void RestartPlatform(ChatPlatform platform, bool clearMessages);
 
-        void AddSystemMessage(std::string text);
+        /// Posts a system line; `always` shows it even with Show System Messages off.
+        void AddSystemMessage(std::string text, bool always = false);
 
         /// The platform's live viewer count, or -1 if unknown, offline or not
         /// connected. Main thread.

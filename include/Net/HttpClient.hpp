@@ -8,7 +8,7 @@
 
 typedef void CURL;
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     /// What a connection does when the headset's CA certificates can't be read:
     /// BestEffort connects unverified (read-only chat), Required fails (anything
     /// that decides what gets written to disk, such as map lookups and downloads).

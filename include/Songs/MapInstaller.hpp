@@ -10,7 +10,7 @@
 #include <string>
 #include <thread>
 
-namespace SimpleBSStreamChat::Songs {
+namespace StandaloneStreamChat::Songs {
     /// Downloads and unpacks one map at a time on its own thread, so neither
     /// the network nor the disk ever holds up the game. A map is unpacked into
     /// a scratch folder first and only moved into place once complete, so a

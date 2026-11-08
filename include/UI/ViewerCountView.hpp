@@ -12,7 +12,7 @@
 #include "UnityEngine/UI/LayoutElement.hpp"
 
 // One platform's [icon count] pair in the panel's viewer strip.
-DECLARE_CLASS_CODEGEN(SimpleBSStreamChat, ViewerCountView, UnityEngine::MonoBehaviour) {
+DECLARE_CLASS_CODEGEN(StandaloneStreamChat, ViewerCountView, UnityEngine::MonoBehaviour) {
     DECLARE_INSTANCE_FIELD(HMUI::ImageView*, _icon);
     DECLARE_INSTANCE_FIELD(UnityEngine::UI::LayoutElement*, _iconLayout);
     DECLARE_INSTANCE_FIELD(TMPro::TextMeshProUGUI*, _count);

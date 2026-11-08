@@ -6,11 +6,11 @@
 #include <memory>
 #include <string>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     class HttpClient;
 }
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     /// Anonymous read-only Twitch chat over IRC/TLS using the documented
     /// "justinfan" login: no OAuth, no client id.
     class TwitchIrcClient : public ChatService {

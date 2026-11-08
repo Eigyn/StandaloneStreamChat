@@ -14,7 +14,7 @@
 // One request in the request list: platform icon,
 // "#position requester" over "song · artist · mapper · key [status]", then
 // Accept and Deny, which give way to a progress ring while the map installs.
-DECLARE_CLASS_CODEGEN(SimpleBSStreamChat, RequestRow, UnityEngine::MonoBehaviour) {
+DECLARE_CLASS_CODEGEN(StandaloneStreamChat, RequestRow, UnityEngine::MonoBehaviour) {
     DECLARE_INSTANCE_FIELD(UnityEngine::RectTransform*, _rect);
     DECLARE_INSTANCE_FIELD(HMUI::ImageView*, _background);
     DECLARE_INSTANCE_FIELD(HMUI::ImageView*, _platformIcon);

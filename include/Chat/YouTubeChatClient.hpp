@@ -8,11 +8,11 @@
 #include <string>
 #include <vector>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     class HttpClient;
 }
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     /// YouTube live chat through the public InnerTube endpoint the browser's
     /// popout chat uses: no API key from the user, no login, no quota.
     class YouTubeChatClient : public ChatService {

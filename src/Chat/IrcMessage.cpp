@@ -4,7 +4,7 @@
 #include <array>
 #include <cctype>
 
-namespace SimpleBSStreamChat::Chat {
+namespace StandaloneStreamChat::Chat {
     namespace {
         // IRCv3 tag value escaping: \: -> ';', \s -> ' ', \\ -> '\', \r, \n.
         std::string UnescapeTagValue(std::string_view value) {

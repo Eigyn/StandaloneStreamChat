@@ -3,7 +3,7 @@
 
 #include <poll.h>
 
-namespace SimpleBSStreamChat::Net {
+namespace StandaloneStreamChat::Net {
     TlsConnection::TlsConnection(std::atomic<bool> const& stopping) : _stopping(stopping) {}
 
     TlsConnection::~TlsConnection() {
