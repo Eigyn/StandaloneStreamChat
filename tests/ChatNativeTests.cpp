@@ -78,7 +78,9 @@ HttpClient::Response HttpClient::Get(std::string const& url, std::vector<std::st
     }
     if (url.find("/users/twitch/") != std::string::npos) {
         ++Fixture::channelCalls;
-        return {200, R"({"emote_set":{"emotes":[{"id":"seven","name":"ChannelSeven","data":{"host":{"url":"//fixture/seven","files":[{"name":"2x.gif"}]}}}]}})"};
+        return {200, R"({"emote_set":{"emotes":[{"id":"seven","name":"ChannelSeven","data":{"host":{"url":"//fixture/seven","files":[{"name":"2x.avif"},{"name":"2x.gif"},{"name":"2x.webp"}]}}},)"
+                     R"({"id":"still","name":"StillSeven","data":{"host":{"url":"//fixture/still","files":[{"name":"2x.png"},{"name":"2x.webp"}]}}},)"
+                     R"({"id":"both","name":"BothSeven","data":{"host":{"url":"//fixture/both","files":[{"name":"2x.png"},{"name":"2x.gif"}]}}}]}})"};
     }
     if (url.find("betterttv") != std::string::npos) return {200, "[]"};
     if (url.find("frankerfacez") != std::string::npos) return {200, R"({"sets":{}})"};
@@ -160,6 +162,12 @@ void Resources() {
         loader.Load(cache, true, true);
         auto emotes = ThirdPartyEmotes::Merge(cache);
         Check(Fixture::channelCalls == 2 && emotes->contains("ChannelBttv") && emotes->contains("ChannelSeven"), "FFZ failure must not suppress BTTV/7TV");
+        auto const& gifOnly = emotes->at("ChannelSeven");
+        auto const& stillOnly = emotes->at("StillSeven");
+        auto const& both = emotes->at("BothSeven");
+        Check(gifOnly.url == "https://fixture/seven/2x.gif" && gifOnly.animatedUrl == gifOnly.url, "7TV emote without a PNG uses its GIF's first frame as the still");
+        Check(stillOnly.url == "https://fixture/still/2x.png" && stillOnly.animatedUrl.empty(), "static 7TV emote uses its PNG");
+        Check(both.url == "https://fixture/both/2x.png" && both.animatedUrl == "https://fixture/both/2x.gif", "7TV emote with both keeps the PNG still");
         Check(cache.badges->contains("subscriber/12") && cache.badges->contains("vip/1"), "global and channel badge resources");
     }
     Fixture::ffzStatus = 503;

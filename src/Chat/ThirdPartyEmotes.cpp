@@ -41,10 +41,19 @@ namespace StandaloneStreamChat::Chat {
                 if (host.empty()) host = "https://cdn.7tv.app/emote/" + id;
                 if (host.starts_with("//")) host = "https:" + host;
                 std::string animated;
-                if (auto files = Json::Path(&emote, {"data", "host", "files"}); Json::IsArray(files))
-                    for (auto const& file : files->GetArray())
-                        if (Json::Scalar(Json::Get(&file, "name")) == "2x.gif") animated = host + "/2x.gif";
-                Add(map, Json::Scalar(Json::Get(&emote, "name")), "7tv:" + StableKey(id), host + "/2x.png", std::move(animated));
+                bool listed = false, png = false;
+                if (auto files = Json::Path(&emote, {"data", "host", "files"}); Json::IsArray(files)) {
+                    listed = true;
+                    for (auto const& file : files->GetArray()) {
+                        auto name = Json::Scalar(Json::Get(&file, "name"));
+                        if (name == "2x.gif") animated = host + "/2x.gif";
+                        else if (name == "2x.png") png = true;
+                    }
+                }
+                // Animated 7TV emotes come only as AVIF, WebP and GIF, with no
+                // PNG. With animations off, their GIF's first frame is the still.
+                auto still = !listed || png || animated.empty() ? host + "/2x.png" : animated;
+                Add(map, Json::Scalar(Json::Get(&emote, "name")), "7tv:" + StableKey(id), std::move(still), std::move(animated));
             }
         }
         void Bttv(EmoteMap& map, Json::Value const* emotes) {
