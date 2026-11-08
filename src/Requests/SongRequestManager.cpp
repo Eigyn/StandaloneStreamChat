@@ -332,8 +332,6 @@ namespace StandaloneStreamChat::Requests {
                 case Chat::ChatEvent::RemoveUser:
                     return !event.userId.empty() ? request.requesterId == event.userId
                                                 : !event.authorLogin.empty() && request.requesterLogin == event.authorLogin;
-                case Chat::ChatEvent::ClearChannel:
-                    return true;
                 default:
                     return false;
             }
@@ -658,8 +656,11 @@ namespace StandaloneStreamChat::Requests {
 
     void SongRequestManager::RememberInstalled(int64_t id, std::filesystem::path const& folder) {
         std::lock_guard lock(_lock);
-        if (auto entry = FindLocked(id))
+        if (auto entry = FindLocked(id)) {
             entry->installedFolder = folder;
+            // The old failure applied to the copy this download replaced.
+            entry->loadFailure = LoadFailure::None;
+        }
     }
 
     void SongRequestManager::RememberLoadFailure(int64_t id, LoadFailure failure) {

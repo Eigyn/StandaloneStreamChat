@@ -155,8 +155,9 @@ namespace StandaloneStreamChat::Chat {
         if (message.event == ChatEvent::Message && !message.isNotice && message.platform != ChatPlatform::System && Requests::IsBsrCommand(message.text))
             command = message;
         bool moderation = message.event != ChatEvent::Message && message.event != ChatEvent::ChannelIdentity;
+        bool revokeRequests = message.event == ChatEvent::RemoveMessage || message.event == ChatEvent::RemoveUser;
         std::unique_lock dispatch(_requestDispatchLock, std::defer_lock);
-        if (command || moderation)
+        if (command || revokeRequests)
             dispatch.lock();
         {
             std::lock_guard lock(_lock);
@@ -181,7 +182,7 @@ namespace StandaloneStreamChat::Chat {
         }
         if (command)
             Requests::SongRequestManager::Instance().OnChatMessage(*command);
-        else if (moderation)
+        else if (revokeRequests)
             Requests::SongRequestManager::Instance().OnModeration(message);
     }
 

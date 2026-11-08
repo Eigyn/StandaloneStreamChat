@@ -8,6 +8,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
+#include <future>
 #include <optional>
 #include <stdexcept>
 
@@ -265,6 +266,10 @@ namespace StandaloneStreamChat::Chat {
         int bootstrapFailures = 0;
         bool reportedOffline = false;
         auto fixedVideo = VideoIdFromInput(_channel);
+        // Keep the probe across reconnects so discarding an in-flight future
+        // cannot block the chat thread. Only consume a ready result.
+        std::future<std::string> liveProbe;
+        uint64_t session = 0, probeSession = 0;
         while (!_stopping) {
             SetViewerSession({});  // each pass starts a new session
             try {
@@ -291,6 +296,7 @@ namespace StandaloneStreamChat::Chat {
                 bootstrapFailures = 0;
                 _onStatus(fmt::format("YouTube: connected to live chat ({})", videoId));
                 SetViewerSession({videoId, _apiKey, _clientVersion});
+                ++session;
 
                 auto lastMessage = steady_clock::now();
                 auto nextCheck = lastMessage + SilentSessionCheck;
@@ -315,23 +321,33 @@ namespace StandaloneStreamChat::Chat {
                         break;
                     }
                     errorDelaySeconds = 2;
-                    // A silent session may be on the wrong video: /live can
-                    // point at a previous or scheduled stream
-                    // for a while. After 2 silent minutes, ask /live again.
                     auto now = steady_clock::now();
-                    if (fixedVideo.empty() && now >= nextCheck) {
-                        nextCheck = now + SilentSessionCheck;
-                        if (now - lastMessage >= SilentSessionCheck) {
-                            std::string current;
-                            try {
-                                current = ResolveLiveVideoId(http);
-                            } catch (std::exception const& ex) {
-                                DEBUG("YouTube: live recheck failed: {}", ex.what());
-                            }
-                            if (!current.empty() && current != videoId) {
+                    bool silent = now - lastMessage >= SilentSessionCheck;
+                    if (liveProbe.valid() && liveProbe.wait_for(seconds::zero()) == std::future_status::ready) {
+                        try {
+                            auto current = liveProbe.get();
+                            if (probeSession == session && silent && !current.empty() && current != videoId) {
                                 INFO("YouTube: /live now points at {} instead of {}", current, videoId);
                                 _onStatus("YouTube: found the channel's current stream - reconnecting");
                                 break;
+                            }
+                        } catch (std::exception const& ex) {
+                            DEBUG("YouTube: live recheck failed: {}", ex.what());
+                        }
+                    }
+                    // A quiet session can be on a previous or scheduled stream.
+                    // Check /live on a separate connection while chat keeps polling.
+                    if (fixedVideo.empty() && now >= nextCheck) {
+                        nextCheck = now + SilentSessionCheck;
+                        if (silent && !liveProbe.valid()) {
+                            try {
+                                liveProbe = std::async(std::launch::async, [this] {
+                                    Net::HttpClient probeHttp(_stopping);
+                                    return ResolveLiveVideoId(probeHttp);
+                                });
+                                probeSession = session;
+                            } catch (std::exception const& ex) {
+                                DEBUG("YouTube: could not start live recheck: {}", ex.what());
                             }
                         }
                     }
