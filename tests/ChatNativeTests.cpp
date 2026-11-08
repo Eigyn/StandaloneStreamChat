@@ -259,6 +259,30 @@ void Backpressure() {
     Check(taken && still.animation.frames.empty() && !still.rgba.empty(), "disabling animation frees completed/in-flight frame sets");
     std::cout << "PASS 1,000-image burst stays bounded while the consumer is paused\n";
 }
+void OversizedImages() {
+    // A big animated Kick emote: its first frame, then more data past the download cap.
+    Gif gif(2,1); gif.Frame(0,0,2,1,{0,1});
+    auto bytes = gif.End(); bytes.resize(UI::MaxDownloadBytes + 4096, 0);
+    Fixture::imageBytes.assign(bytes.begin(), bytes.end());
+    auto take = [](UI::EmoteDownloader& downloader, UI::EmoteDownloader::Result& result) {
+        bool taken = false;
+        for (int i = 0; i < 3000 && !taken; i++) { taken = downloader.Take(result); if (!taken) std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+        return taken;
+    };
+    {
+    UI::EmoteDownloader downloader;
+    Check(downloader.Request("big", "fixture:big", "fixture:big", false), "oversized GIF queued");
+    UI::EmoteDownloader::Result result;
+    Check(take(downloader, result) && result.width == 2 && result.height == 1 && result.rgba.size() == 8 && result.bytes.empty(), "oversized GIF keeps its first frame");
+    }
+    // A cut-off PNG or JPEG can't be decoded, so nothing reaches Unity.
+    Fixture::imageBytes.assign(UI::MaxDownloadBytes + 4096, 'x');
+    UI::EmoteDownloader downloader;
+    Check(downloader.Request("png", "fixture:png", "fixture:png", false), "oversized image queued");
+    UI::EmoteDownloader::Result result;
+    Check(take(downloader, result) && result.bytes.empty() && result.rgba.empty(), "oversized non-GIF image is dropped");
+    std::cout << "PASS oversized GIFs keep their first frame; other oversized images are dropped\n";
+}
 }
 int main(int argc, char** argv) {
     if (argc == 2) {
@@ -270,6 +294,6 @@ int main(int argc, char** argv) {
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }
-    Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure();
+    Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure(); OversizedImages();
     std::cout << "All chat native tests passed; external network traffic: none.\n";
 }

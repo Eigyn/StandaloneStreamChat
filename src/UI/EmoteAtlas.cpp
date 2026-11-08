@@ -121,6 +121,9 @@ namespace StandaloneStreamChat::UI {
         std::atomic<int> traceBudget{60};
         bool Trace() { return traceBudget.fetch_sub(1) > 0; }
 
+        // A sprite's name in TMP: short, and unique because glyph indices never repeat.
+        std::string SpriteName(uint32_t glyphIndex) { return "ssc" + std::to_string(glyphIndex); }
+
         std::string Signature(std::vector<uint8_t> const& bytes) {
             std::string hex;
             for (size_t i = 0; i < std::min<size_t>(bytes.size(), 8); i++)
@@ -192,15 +195,21 @@ namespace StandaloneStreamChat::UI {
                     auto response = fetch(animate ? job.url : job.fallback);
                     if ((!response.Ok() || response.body.size() > MaxDownloadBytes) && animate && job.url != job.fallback)
                         response = fetch(job.fallback);
-                    if (response.Ok() && response.body.size() <= MaxDownloadBytes)
+                    // An image over the cap was cut off there. A GIF's first frame
+                    // comes first, so a cut-off GIF (a big Kick emote) still shows
+                    // as a still image; a cut-off PNG or JPEG can't be decoded.
+                    bool truncated = response.body.size() > MaxDownloadBytes;
+                    if (response.Ok())
                         result.bytes.assign(response.body.begin(), response.body.end());
                     if (LooksLikeGif(result.bytes)) {
-                        if (animate && _animationsEnabled && job.epoch == _animationEpoch && DecodeGifAnimation(result.bytes, result.animation) && result.animation.frames.size() > 1) {
+                        if (!truncated && animate && _animationsEnabled && job.epoch == _animationEpoch && DecodeGifAnimation(result.bytes, result.animation) && result.animation.frames.size() > 1) {
                             result.width = result.animation.width; result.height = result.animation.height;
                         } else {
                             result.animation = {};
                             DecodeGifFirstFrame(result.bytes, result.width, result.height, result.rgba);
                         }
+                        result.bytes.clear();
+                    } else if (truncated) {
                         result.bytes.clear();
                     }
                     if (!_animationsEnabled || job.epoch != _animationEpoch) StillFrame(result);
@@ -392,8 +401,11 @@ namespace StandaloneStreamChat::UI {
         if (_pixelsDirty || _tablesDirty)
             Upload();
         for (auto const& key : addedKeys) {
-            if (Trace())
-                INFO("Emote {}: added, TMP finds it at index {}", key, _asset->GetSpriteIndexFromName(key));
+            auto it = _entries.find(key);
+            if (it != _entries.end() && Trace()) {
+                auto name = SpriteName(it->second.glyphIndex);
+                INFO("Emote {}: added as {}, TMP finds it at index {}", key, name, _asset->GetSpriteIndexFromName(name));
+            }
         }
         return !addedKeys.empty();
     }
@@ -480,13 +492,17 @@ namespace StandaloneStreamChat::UI {
             UnityEngine::TextCore::GlyphMetrics(metricsWidth, metricsHeight, 0.0f, metricsHeight * (0.80f / 0.90f), metricsWidth * 1.08f),
             UnityEngine::TextCore::GlyphRect(originX + Padding, originY + Padding, contentWidth, contentHeight), 1.0f, 0);
         auto character = TMPro::TMP_SpriteCharacter::New_ctor(0xFFFE, glyph);
-        character->set_name(key);
+        // TMP ignores a rich-text tag longer than 128 characters and prints it
+        // as text, and keys built from badge URLs can be that long. So each
+        // sprite gets a short name of its own, unique for the session.
+        auto name = SpriteName(glyph->get_index());
+        character->set_name(name);
         character->set_scale(1.0f);
         _asset->get_spriteGlyphTable()->Add(glyph);
         _asset->get_spriteCharacterTable()->Add(character);
         _tablesDirty = true;
         entry.status = Status::Ready;
-        entry.tag = "<sprite name=\"" + key + "\">";
+        entry.tag = "<sprite name=\"" + name + "\">";
         entry.glyphIndex = glyph->get_index();
         entry.lastUsed = ++_useCounter;
         return true;
