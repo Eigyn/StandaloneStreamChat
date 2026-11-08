@@ -51,18 +51,25 @@ namespace StandaloneStreamChat {
         // queue carry over; the originals stay for anyone going back.
         constexpr std::string_view LegacyId = "SimpleBSStreamChat";
 
-        void CopyLegacyFile(std::string_view suffix) {
+        bool CopyLegacyFile(std::string_view suffix) {
             auto directory = ConfigDirectory();
             auto from = directory / (std::string(LegacyId) + std::string(suffix));
             auto to = directory / (std::string(MOD_ID) + std::string(suffix));
             std::error_code ec;
-            if (std::filesystem::exists(to, ec) || !std::filesystem::exists(from, ec))
-                return;
+            bool exists = std::filesystem::exists(to, ec);
+            if (ec)
+                return false;
+            if (exists)
+                return true;
+            exists = std::filesystem::exists(from, ec);
+            if (ec || !exists)
+                return !ec;
             std::filesystem::copy_file(from, to, ec);
             if (ec)
                 WARNING("Could not copy {} to {}: {}", from.string(), to.string(), ec.message());
             else
                 INFO("Copied {} from {}", to.filename().string(), from.filename().string());
+            return !ec;
         }
     }
 
@@ -94,8 +101,14 @@ namespace StandaloneStreamChat {
     }
 
     void LoadConfig() {
-        CopyLegacyFile(".json");
-        CopyLegacyFile(".Requests.json");  // read later by SongRequestManager::Start
+        auto migration = ConfigDirectory() / (MOD_ID ".LegacyMigrated");
+        std::error_code migrationError;
+        if (!std::filesystem::exists(migration, migrationError) && !migrationError) {
+            bool settings = CopyLegacyFile(".json");
+            bool queue = CopyLegacyFile(".Requests.json");  // read later by SongRequestManager::Start
+            if (settings && queue && !WriteFileReplacing(migration, "1\n"))
+                WARNING("Could not record completed config migration");
+        }
 
         auto path = ConfigPath();
         std::ifstream file(path, std::ios::binary);

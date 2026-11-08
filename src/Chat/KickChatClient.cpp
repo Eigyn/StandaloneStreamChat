@@ -290,8 +290,11 @@ namespace StandaloneStreamChat::Chat {
         auto scheduleRefresh = [&refreshAt](Json::Value const* reply) {
             auto ttl = Json::Get(reply, "ttl");
             auto expires = Json::Get(reply, "expires");
-            if (expires && expires->IsBool() && expires->GetBool() && ttl && ttl->IsNumber())
-                refreshAt = Clock::now() + std::chrono::seconds(std::max(ttl->GetInt() - 120, 30));
+            if (expires && expires->IsBool() && expires->GetBool() && ttl && ttl->IsInt() && ttl->GetInt() > 0) {
+                auto lifetime = std::chrono::milliseconds(static_cast<int64_t>(ttl->GetInt()) * 1000);
+                refreshAt = Clock::now() + std::max(lifetime - std::chrono::seconds(120),
+                                                     lifetime / 2);
+            }
         };
 
         std::string frame;
@@ -409,10 +412,12 @@ namespace StandaloneStreamChat::Chat {
         if (auto badges = Json::Get(identity, "badges_v2"); Json::IsArray(badges)) {
             chat.badges.clear();
             for (auto const& badge : badges->GetArray()) {
+                auto type = Json::Scalar(Json::Get(&badge, "badge_type"));
+                chat.isBroadcaster |= type == "broadcaster";
+                chat.isModerator |= type == "moderator";
                 auto selected = Json::Get(&badge, "selected");
                 if (selected && selected->IsBool() && !selected->GetBool()) continue;
-                if (chat.badges.size() >= 16) break;
-                auto type = Json::Scalar(Json::Get(&badge, "badge_type"));
+                if (chat.badges.size() >= 16) continue;
                 chat.badges.push_back({type, Json::Scalar(Json::Path(&badge, {"metadata", "level"})),
                                        Json::Scalar(Json::Get(&badge, "name")), Json::Scalar(Json::Get(&badge, "image_url"))});
             }

@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -14,7 +15,8 @@ namespace StandaloneStreamChat::Net {
         // feed it the headset's own trusted roots. Android keeps one PEM per CA;
         // Android 14+ moved the live set into the Conscrypt APEX.
         std::string const& SystemCaBundle() {
-            static std::string const bundle = [] {
+            // Network workers can still open connections during static teardown.
+            static auto const* bundle = new std::string([] {
                 for (auto dir : {"/apex/com.android.conscrypt/cacerts", "/system/etc/security/cacerts"}) {
                     // Only certificates that were actually read count, so a
                     // directory of unreadable files falls through to the next one.
@@ -38,12 +40,10 @@ namespace StandaloneStreamChat::Net {
                         return pem;
                     }
                 }
-                // Chat is public and read-only, so an unverified chat connection
-                // beats none. Map lookups and downloads still refuse (TlsTrust::Required).
-                ERROR("No system CA certificates readable; chat connects WITHOUT certificate verification, map downloads are disabled");
+                ERROR("No system CA certificates readable; using libcurl's default trust store");
                 return std::string();
-            }();
-            return bundle;
+            }());
+            return *bundle;
         }
 
         void EnsureCurlGlobalInit() {
@@ -57,9 +57,10 @@ namespace StandaloneStreamChat::Net {
         }
     }
 
-    CURL* NewEasyHandle(std::atomic<bool> const& stopping, TlsTrust trust) {
+    CURL* NewEasyHandle(std::atomic<bool> const& stopping) {
         EnsureCurlGlobalInit();
-        CURL* curl = curl_easy_init();
+        std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), curl_easy_cleanup);
+        auto curl = handle.get();
         if (!curl)
             throw std::runtime_error("curl_easy_init failed");
 
@@ -68,16 +69,15 @@ namespace StandaloneStreamChat::Net {
         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &AbortWhenStopping);
         curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &stopping);
+        Check(curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https"), "require HTTPS");
+        Check(curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "https"), "require HTTPS redirects");
 
         auto const& ca = SystemCaBundle();
         if (!ca.empty()) {
             curl_blob blob{const_cast<char*>(ca.data()), ca.size(), CURL_BLOB_NOCOPY};
-            curl_easy_setopt(curl, CURLOPT_CAINFO_BLOB, &blob);
-        } else if (trust == TlsTrust::BestEffort) {
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+            Check(curl_easy_setopt(curl, CURLOPT_CAINFO_BLOB, &blob), "load system CA certificates");
         }
-        // Required with no roots: verification stays on, so the handshake fails.
-        return curl;
+        return handle.release();
     }
 
     void Check(CURLcode rc, char const* what) {

@@ -1,5 +1,7 @@
 # include some defines automatically made by qpm
 include(qpm_defines.cmake)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/qpm.json" package_config)
+string(JSON MOD_VERSION GET "${package_config}" info version)
 
 # MOD_ID comes from qpm_defines.cmake (the package name): it names the log
 # context, the saved files and the download folder.

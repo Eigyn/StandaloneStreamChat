@@ -29,6 +29,7 @@
 #include "Chat/MessageMetadata.hpp"
 #include "UI/EmoteReferences.hpp"
 #include "UI/GifDecoder.hpp"
+#include "UI/RichText.hpp"
 #include "Net/HttpClient.hpp"
 #include "Net/TlsConnection.hpp"
 #include "Net/WebSocket.hpp"
@@ -66,7 +67,7 @@ WebSocket::WebSocket(std::atomic<bool> const& stopping) : _tls(stopping), _stopp
 void WebSocket::Connect(std::string_view, std::vector<std::string> const&) {}
 void WebSocket::SendText(std::string_view) {}
 bool WebSocket::Receive(std::string&, int) { return false; }
-HttpClient::HttpClient(std::atomic<bool> const&, TlsTrust) {}
+HttpClient::HttpClient(std::atomic<bool> const&) {}
 HttpClient::~HttpClient() = default;
 HttpClient::Response HttpClient::Get(std::string const& url, std::vector<std::string> const&, StopWhen) {
     ++Fixture::httpCalls;
@@ -159,9 +160,10 @@ void OtherPlatforms() {
     KickChatClient kick("fixture", [&](ChatMessage m) { if (m.event == ChatEvent::Message) history.push_back(std::move(m)); else ApplyModeration(history, m); }, [](std::string) {});
     kick._chatroomId = "1234";
     rapidjson::Document message;
-    message.Parse(R"({"id":"k1","content":"hello @fixture [emote:1:Hi]","sender":{"id":42,"username":"Alice","identity":{"badges_v2":[{"badge_type":"subscriber","name":"Subscriber","image_url":"https://fixture/kick.png","selected":true},{"badge_type":"vip","selected":false}]}}})");
+    message.Parse(R"({"id":"k1","content":"hello @fixture [emote:1:Hi]","sender":{"id":42,"username":"Alice","identity":{"badges_v2":[{"badge_type":"subscriber","name":"Subscriber","image_url":"https://fixture/kick.png","selected":true},{"badge_type":"moderator","selected":false}]}}})");
     kick.HandleChatMessage(&message);
     Check(history.size() == 1 && history[0].userId == "42" && history[0].isMention && history[0].badges.size() == 1 && !history[0].segments.back().animatedUrl.empty(), "Kick badges and GIF metadata");
+    Check(history.front().isModerator, "Kick v2 role is available even when its badge is hidden");
     rapidjson::Document deletion; deletion.Parse(R"({"id":"action-id","message":{"id":"k1"}})");
     kick.HandleControl("App\\Events\\MessageDeletedEvent", &deletion);
     Check(history.size() == 1 && history.front().isDeleted, "Kick deletion uses message.id, not action id");
@@ -315,6 +317,8 @@ int main(int argc, char** argv) {
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }
+    Fixture::Check(StandaloneStreamChat::UI::Escape("</no</NoParse>parse><size=200%>fixture</size>") ==
+                   "<noparse><size=200%>fixture</size></noparse>", "closing tags formed by erasing another tag stay literal");
     Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure(); OversizedImages();
     std::cout << "All chat native tests passed; external network traffic: none.\n";
 }

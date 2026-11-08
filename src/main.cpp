@@ -23,6 +23,15 @@
 static modloader::ModInfo modInfo{MOD_ID, VERSION, 0};
 
 namespace {
+    struct StopWorkers {
+        StandaloneStreamChat::Chat::ChatManager& chat;
+        StandaloneStreamChat::Requests::SongRequestManager& requests;
+        ~StopWorkers() {
+            chat.Stop();
+            requests.Stop();
+        }
+    };
+
     // 0.10.0 changed the mod ID, so MBF installs it beside an older
     // SimpleBSStreamChat instead of upgrading it. Both would connect and
     // draw a panel, so say which one to remove.
@@ -48,6 +57,7 @@ MAKE_HOOK_MATCH(MainMenuViewController_DidActivate, &GlobalNamespace::MainMenuVi
         StandaloneStreamChat::ChatPanel::EnsureCreated();
         WarnIfOldVersionLoaded();
     }
+    StandaloneStreamChat::Requests::SongRequestManager::Instance().MenuActivated();
 }
 
 // Called very early by scotland2, before il2cpp is usable.
@@ -71,7 +81,11 @@ MOD_EXPORT_FUNC void late_load() noexcept {
     INSTALL_HOOK(hookLogger, MainMenuViewController_DidActivate);
 
     // Connect right away, so chat is live by the time the menu shows.
-    StandaloneStreamChat::Requests::SongRequestManager::Instance().Start();
-    StandaloneStreamChat::Chat::ChatManager::Instance().Start();
+    auto& requests = StandaloneStreamChat::Requests::SongRequestManager::Instance();
+    auto& chat = StandaloneStreamChat::Chat::ChatManager::Instance();
+    static StopWorkers stopWorkers{chat, requests};
+    BSML::Events::onGameDidRestart += [] { StandaloneStreamChat::Requests::SongRequestManager::Instance().MenuRestarting(); };
+    requests.Start();
+    chat.Start();
     INFO("Late load complete");
 }

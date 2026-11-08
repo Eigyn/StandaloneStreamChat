@@ -125,6 +125,7 @@ namespace StandaloneStreamChat::Chat {
         connection.SendAll("CAP REQ :twitch.tv/tags twitch.tv/commands\r\n");
         connection.SendAll("NICK " + nick + "\r\n");
 
+        constexpr size_t MaxLineBytes = 64 * 1024;
         std::string pending;
         while (!_stopping) {
             if (!connection.Receive(pending, 250))
@@ -132,6 +133,8 @@ namespace StandaloneStreamChat::Chat {
 
             size_t lineStart = 0;
             for (auto nl = pending.find('\n'); nl != std::string::npos; nl = pending.find('\n', lineStart)) {
+                if (nl - lineStart > MaxLineBytes)
+                    throw std::runtime_error("Twitch IRC line too large");
                 std::string_view line(pending.data() + lineStart, nl - lineStart);
                 if (!line.empty() && line.back() == '\r')
                     line.remove_suffix(1);
@@ -160,6 +163,8 @@ namespace StandaloneStreamChat::Chat {
                 }
             }
             pending.erase(0, lineStart);
+            if (pending.size() > MaxLineBytes)
+                throw std::runtime_error("Twitch IRC line too large");
         }
     }
 

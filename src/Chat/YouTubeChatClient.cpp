@@ -50,8 +50,8 @@ namespace StandaloneStreamChat::Chat {
             return {};
         }
 
-        // How long a connected session may stay silent, with no viewer count,
-        // before /live is asked again whether it points somewhere else.
+        // How long a connected session may stay silent before /live is asked
+        // again whether it points somewhere else.
         constexpr auto SilentSessionCheck = std::chrono::minutes(2);
 
         std::string Trim(std::string_view value) {
@@ -62,7 +62,9 @@ namespace StandaloneStreamChat::Chat {
         }
 
         std::string BuildLiveUrl(std::string channel) {
-            if (channel.starts_with("http://") || channel.starts_with("https://")) {
+            if (channel.starts_with("http://"))
+                channel.replace(0, 7, "https://");
+            if (channel.starts_with("https://")) {
                 // A pasted channel link: its /live page shows the current stream.
                 channel = channel.substr(0, channel.find_first_of("?#"));
                 while (!channel.empty() && channel.back() == '/')
@@ -289,7 +291,6 @@ namespace StandaloneStreamChat::Chat {
                 bootstrapFailures = 0;
                 _onStatus(fmt::format("YouTube: connected to live chat ({})", videoId));
                 SetViewerSession({videoId, _apiKey, _clientVersion});
-                errorDelaySeconds = 2;
 
                 auto lastMessage = steady_clock::now();
                 auto nextCheck = lastMessage + SilentSessionCheck;
@@ -307,19 +308,20 @@ namespace StandaloneStreamChat::Chat {
                         _onMessage(std::move(message));
                     }
                     if (!result.valid) {
-                        _viewers = -1;
+                        SetViewerSession({});
                         _onStatus("YouTube: chat ended or reset - reconnecting");
                         SleepFor(seconds(errorDelaySeconds));
                         errorDelaySeconds = std::min(errorDelaySeconds * 2, 120);
                         break;
                     }
-                    // A session with no messages and no viewer count may be on the
-                    // wrong video: /live can point at a previous or scheduled stream
+                    errorDelaySeconds = 2;
+                    // A silent session may be on the wrong video: /live can
+                    // point at a previous or scheduled stream
                     // for a while. After 2 silent minutes, ask /live again.
                     auto now = steady_clock::now();
                     if (fixedVideo.empty() && now >= nextCheck) {
                         nextCheck = now + SilentSessionCheck;
-                        if (now - lastMessage >= SilentSessionCheck && _viewers < 0) {
+                        if (now - lastMessage >= SilentSessionCheck) {
                             std::string current;
                             try {
                                 current = ResolveLiveVideoId(http);
@@ -338,6 +340,7 @@ namespace StandaloneStreamChat::Chat {
             } catch (std::exception const& ex) {
                 if (_stopping)
                     break;
+                SetViewerSession({});
                 _onStatus(fmt::format("YouTube: error ({}), retrying in {}s", ex.what(), errorDelaySeconds));
                 SleepFor(std::chrono::seconds(errorDelaySeconds));
                 errorDelaySeconds = std::min(errorDelaySeconds * 2, 120);
@@ -410,6 +413,7 @@ namespace StandaloneStreamChat::Chat {
     void YouTubeChatClient::SetViewerSession(ViewerSession session) {
         std::lock_guard lock(_viewerSessionLock);
         _viewerSession = std::move(session);
+        InvalidateViewers();
     }
 
     // The watch page's live counter ("9,545 watching now"), from InnerTube's

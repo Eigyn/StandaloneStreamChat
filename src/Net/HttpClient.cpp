@@ -28,7 +28,7 @@ namespace StandaloneStreamChat::Net {
         }
     }
 
-    HttpClient::HttpClient(std::atomic<bool> const& stopping, TlsTrust trust) : _curl(NewEasyHandle(stopping, trust)) {
+    HttpClient::HttpClient(std::atomic<bool> const& stopping) : _curl(NewEasyHandle(stopping)) {
         curl_easy_setopt(_curl, CURLOPT_USERAGENT, BrowserUserAgent);
         curl_easy_setopt(_curl, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(_curl, CURLOPT_MAXREDIRS, 5L);

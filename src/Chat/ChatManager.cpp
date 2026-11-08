@@ -122,6 +122,7 @@ namespace StandaloneStreamChat::Chat {
         auto slot = SlotOf(platform);
         {
             // Anything the old service still delivers is dropped from here on.
+            std::lock_guard dispatch(_requestDispatchLock);
             std::lock_guard lock(_lock);
             ++_generations[slot];
             _channelIds[slot].clear();
@@ -153,6 +154,10 @@ namespace StandaloneStreamChat::Chat {
         std::optional<ChatMessage> command;
         if (message.event == ChatEvent::Message && !message.isNotice && message.platform != ChatPlatform::System && Requests::IsBsrCommand(message.text))
             command = message;
+        bool moderation = message.event != ChatEvent::Message && message.event != ChatEvent::ChannelIdentity;
+        std::unique_lock dispatch(_requestDispatchLock, std::defer_lock);
+        if (command || moderation)
+            dispatch.lock();
         {
             std::lock_guard lock(_lock);
             if (_generations[slot] != generation)
@@ -161,7 +166,7 @@ namespace StandaloneStreamChat::Chat {
                 _channelIds[slot] = message.channelId;
                 return;
             }
-            if (message.event != ChatEvent::Message) {
+            if (moderation) {
                 auto before = _messages.size();
                 if (ApplyModeration(_messages, message)) {
                     _version++;
@@ -170,12 +175,14 @@ namespace StandaloneStreamChat::Chat {
                     else
                         INFO("Chat moderation: removed {} messages from platform {}", before - _messages.size(), slot);
                 }
-                return;
+            } else {
+                PushLocked(std::move(message));
             }
-            PushLocked(std::move(message));
         }
         if (command)
             Requests::SongRequestManager::Instance().OnChatMessage(*command);
+        else if (moderation)
+            Requests::SongRequestManager::Instance().OnModeration(message);
     }
 
     void ChatManager::AddSystemMessage(std::string text, bool always) {

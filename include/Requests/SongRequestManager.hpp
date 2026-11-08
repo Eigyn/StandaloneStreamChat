@@ -42,8 +42,13 @@ namespace StandaloneStreamChat::Requests {
 
         /// Restores the saved queue and starts the workers. Main thread, once.
         void Start();
+        void Stop();
         /// Handles a "!bsr" message. Any thread.
         void OnChatMessage(Chat::ChatMessage const& message);
+        void OnModeration(Chat::ChatMessage const& event);
+        /// Drop menu-bound state before a soft restart. Resume any download once the menu returns.
+        void MenuRestarting();
+        void MenuActivated();
         /// Prepares/selects a request. Main thread; one active acceptance.
         void Accept(int64_t id);
         bool CanAccept() const;
@@ -66,11 +71,9 @@ namespace StandaloneStreamChat::Requests {
         using Clock = std::chrono::steady_clock;
 
         /// Installed files that SongCore refreshed without loading the hash.
-        /// ExistingCopy: files from before this Accept (an older or damaged
-        /// copy), so the next Accept downloads a fresh one. DownloadedCopy: our
-        /// own fresh download, so the next Accept reports it instead of
-        /// refreshing the whole library again.
-        enum class LoadFailure { None, ExistingCopy, DownloadedCopy };
+        /// An older or damaged copy can be replaced on the next Accept.
+        /// Failure of a fresh download is represented by Unplayable status.
+        enum class LoadFailure { None, ExistingCopy };
 
         struct Entry {
             SongRequest request;
@@ -86,11 +89,14 @@ namespace StandaloneStreamChat::Requests {
         enum class Stage { Checking, Downloading, WaitingForRefresh, Refreshing, Opening, Selecting };
         struct Install {
             int64_t id = 0;
+            std::string folderName;
+            std::filesystem::path installedFolder;
             std::string hash;
             std::string url;
             std::filesystem::path folder;
             bool filesInstalled = false;
             bool downloaded = false;  // files came from this Accept's download
+            bool openWhenReady = true;
             LoadFailure previousFailure = LoadFailure::None;
             bool probeExisting = false;
             bool existingChecked = false;
@@ -127,6 +133,7 @@ namespace StandaloneStreamChat::Requests {
         void Drive();
         bool Step();
         void Begin(int64_t id);
+        void ResolveInstallPaths();
         void Advance();
         void StartDownload(float now);
         void BeginOpening(float now);
@@ -158,6 +165,7 @@ namespace StandaloneStreamChat::Requests {
         std::optional<int64_t> _accepted;
         std::optional<Install> _install;
         bool _driving = false;
+        uint64_t _driveGeneration = 0;
 
         std::unique_ptr<Songs::MapInstaller> _installer;
         std::thread _worker;

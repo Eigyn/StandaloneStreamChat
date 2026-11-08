@@ -51,6 +51,64 @@ namespace StandaloneStreamChat::Songs {
             return levels && levels->i___System__Collections__Generic__IReadOnlyCollection_1_T_()->get_Count() == 1 &&
                    Matches(levels->get_Item(0), level);
         }
+
+        bool SelectCategory(GlobalNamespace::LevelFilteringNavigationController* filtering, Category category) {
+            auto selector = filtering->_selectLevelCategoryViewController;
+            auto segments = selector ? selector->_levelFilterCategoryIconSegmentedControl : nullptr;
+            auto categories = selector ? selector->_levelCategoryInfos : nullptr;
+            if (!segments || !categories)
+                return false;
+            for (int i = 0; i < static_cast<int>(categories.size()); ++i) {
+                if (categories[i]->levelCategory == category) {
+                    segments->SelectCellWithNumber(i);
+                    selector->LevelFilterCategoryIconSegmentedControlDidSelectCell(segments, i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void Refresh(GlobalNamespace::LevelSearchViewController* search, GlobalNamespace::LevelFilter& filter) {
+#ifdef SSC_BS_1_40
+            search->Refresh(byref(filter));
+#else
+            search->Refresh(by_ref(filter));
+#endif
+        }
+
+        SelectionState::PreviousView CaptureView(GlobalNamespace::LevelFilteringNavigationController* filtering) {
+            SelectionState::PreviousView previous{filtering->GetInstanceID(), static_cast<int>(filtering->get_selectedLevelCategory())};
+            if (auto search = filtering->_levelSearchViewController) {
+                auto& filter = previous.filter.emplace(search->_currentSearchFilter);
+                if (filter.characteristicSerializedName)
+                    previous.characteristic = static_cast<std::string>(filter.characteristicSerializedName);
+                if (filter.searchText)
+                    previous.searchText = static_cast<std::string>(filter.searchText);
+                if (filter.limitIds) {
+                    auto& ids = previous.limitIds.emplace();
+                    for (auto id : filter.limitIds)
+                        ids.push_back(static_cast<std::string>(id));
+                }
+                filter.characteristicSerializedName = nullptr;
+                filter.searchText = nullptr;
+                filter.limitIds = nullptr;
+            }
+            return previous;
+        }
+
+        GlobalNamespace::LevelFilter RestoreFilter(SelectionState::PreviousView const& previous) {
+            auto filter = *previous.filter;
+            if (previous.characteristic)
+                filter.characteristicSerializedName = *previous.characteristic;
+            if (previous.searchText)
+                filter.searchText = *previous.searchText;
+            if (previous.limitIds) {
+                filter.limitIds = ArrayW<StringW>(previous.limitIds->size());
+                for (size_t i = 0; i < previous.limitIds->size(); ++i)
+                    filter.limitIds[i] = (*previous.limitIds)[i];
+            }
+            return filter;
+        }
     }
 
     SelectionResult AdvanceSelection(GlobalNamespace::BeatmapLevel* level, SelectionState& state, std::string& error) {
@@ -99,27 +157,27 @@ namespace StandaloneStreamChat::Songs {
             auto collection = navigation->_levelCollectionNavigationController;
             if (!filtering || !collection)
                 return SelectionResult::Pending;
+            auto view = collection->_levelCollectionViewController;
+            auto table = view ? view->_levelCollectionTableView : nullptr;
             switch (state.phase) {
                 case SelectionState::Phase::ChooseAll: {
+                    if (table && Matches(table->_selectedBeatmapLevel, level)) {
+                        state.phase = SelectionState::Phase::Confirm;
+                        return SelectionResult::Pending;
+                    }
+                    if (!state.previousView)
+                        state.previousView = CaptureView(filtering);
                     if (filtering->get_selectedLevelCategory() != Category::All) {
                         auto selector = filtering->_selectLevelCategoryViewController;
                         auto segments = selector ? selector->_levelFilterCategoryIconSegmentedControl : nullptr;
                         auto categories = selector ? selector->_levelCategoryInfos : nullptr;
                         if (!segments || !categories)
                             return SelectionResult::Pending;
-                        int index = -1;
-                        for (int i = 0; i < static_cast<int>(categories.size()); ++i) {
-                            if (categories[i]->levelCategory == Category::All) {
-                                index = i;
-                                break;
-                            }
-                        }
-                        if (index < 0) {
+                        state.previousView->changedCategory = true;
+                        if (!SelectCategory(filtering, Category::All)) {
                             error = "All Songs is unavailable";
                             return SelectionResult::Failed;
                         }
-                        segments->SelectCellWithNumber(index);
-                        selector->LevelFilterCategoryIconSegmentedControlDidSelectCell(segments, index);
                     }
                     state.phase = SelectionState::Phase::WaitForAll;
                     return SelectionResult::Pending;
@@ -136,7 +194,6 @@ namespace StandaloneStreamChat::Songs {
                     auto search = filtering->_levelSearchViewController;
                     if (!search || search->_isInTransition)
                         return SelectionResult::Pending;
-                    search->ResetAllFilterSettings(false);
                     GlobalNamespace::LevelFilter filter{};
                     filter.songOwned = true;
                     filter.songNotOwned = false;
@@ -150,18 +207,12 @@ namespace StandaloneStreamChat::Songs {
                     filter.searchText = u"";
                     filter.limitIds = ArrayW<StringW>({level->levelID});
                     state.filteredLevelId = static_cast<std::string>(level->levelID);
-#ifdef SSC_BS_1_40
-                    search->Refresh(byref(filter));
-#else
-                    search->Refresh(by_ref(filter));
-#endif
+                    Refresh(search, filter);
                     INFO("Filtering All Songs to requested level {}", static_cast<std::string>(level->levelID));
                     state.phase = SelectionState::Phase::WaitForResults;
                     return SelectionResult::Pending;
                 }
                 case SelectionState::Phase::WaitForResults: {
-                    auto view = collection->_levelCollectionViewController;
-                    auto table = view ? view->_levelCollectionTableView : nullptr;
                     // Inspect the resulting collection, not just a completed call or delay.
                     if (!ContainsOnlyRequestedLevel(table, level))
                         return SelectionResult::Pending;
@@ -170,9 +221,10 @@ namespace StandaloneStreamChat::Songs {
                     return SelectionResult::Pending;
                 }
                 case SelectionState::Phase::Confirm: {
-                    auto view = collection->_levelCollectionViewController;
-                    auto table = view ? view->_levelCollectionTableView : nullptr;
-                    if (!ContainsOnlyRequestedLevel(table, level) || !Matches(table->_selectedBeatmapLevel, level)) {
+                    if (!table || !Matches(table->_selectedBeatmapLevel, level) ||
+                        (!state.filteredLevelId.empty() && !ContainsOnlyRequestedLevel(table, level))) {
+                        if (state.filteredLevelId.empty())
+                            state.phase = SelectionState::Phase::ChooseAll;
                         state.confirmedSince = -1.0f;
                         return SelectionResult::Pending;
                     }
@@ -184,7 +236,7 @@ namespace StandaloneStreamChat::Songs {
                     if (now - state.confirmedSince < 0.1f)
                         return SelectionResult::Pending;
                     INFO("Confirmed requested level selected: {}", static_cast<std::string>(level->levelID));
-                    ReleaseSelectionFilter(state);
+                    ReleaseSelectionFilter(state, true);
                     return SelectionResult::Selected;
                 }
                 default:
@@ -200,22 +252,37 @@ namespace StandaloneStreamChat::Songs {
         return SelectionResult::Failed;
     }
 
-    void ReleaseSelectionFilter(SelectionState const& state) {
-        if (state.filteredLevelId.empty())
+    void ReleaseSelectionFilter(SelectionState const& state, bool selected) {
+        if (!state.previousView)
             return;
         try {
             auto solo = Solo();
             if (!solo || !solo->levelSelectionNavigationController)
                 return;
             auto filtering = solo->levelSelectionNavigationController->_levelFilteringNavigationController;
+            auto const& previous = *state.previousView;
+            if (!filtering || filtering->GetInstanceID() != previous.controllerId)
+                return;
             auto search = filtering ? filtering->_levelSearchViewController : nullptr;
             if (!search)
                 return;
             auto filter = search->_currentSearchFilter;
-            if (filter.limitIds && filter.limitIds.size() == 1 &&
-                static_cast<std::string>(filter.limitIds[0]) == state.filteredLevelId) {
+            bool ownsFilter = !state.filteredLevelId.empty() && filter.limitIds && filter.limitIds.size() == 1 &&
+                              static_cast<std::string>(filter.limitIds[0]) == state.filteredLevelId;
+            if (selected && ownsFilter) {
                 filter.limitIds = nullptr;
                 search->_currentSearchFilter = filter;
+            } else if (!selected && (ownsFilter || state.filteredLevelId.empty())) {
+                bool menuVisible = MenuState::SongListShowing();
+                if (previous.changedCategory && menuVisible && filtering->get_selectedLevelCategory() == Category::All)
+                    SelectCategory(filtering, static_cast<Category>(previous.category));
+                if (ownsFilter && previous.filter) {
+                    filter = RestoreFilter(previous);
+                    if (menuVisible && !previous.changedCategory)
+                        Refresh(search, filter);
+                    else
+                        search->_currentSearchFilter = filter;
+                }
             }
         } catch (...) {
             WARNING("Could not release the temporary request filter");

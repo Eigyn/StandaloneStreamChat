@@ -3,6 +3,7 @@
 #include "Requests/BsrCommand.hpp"
 #include "Chat/ChatManager.hpp"
 #include "Chat/Json.hpp"
+#include "Chat/MessageHistory.hpp"
 #include "Net/HttpClient.hpp"
 #include "Songs/LevelNavigator.hpp"
 #include "Songs/MapInstaller.hpp"
@@ -23,6 +24,7 @@
 #include <iterator>
 #include <random>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace StandaloneStreamChat::Requests {
     namespace {
@@ -153,6 +155,20 @@ namespace StandaloneStreamChat::Requests {
                     writer.Key("RequesterId");
                     writer.String(request.requesterId.c_str(), request.requesterId.size());
                 }
+                auto writeSource = [&](char const* key, std::string const& value) {
+                    if (!value.empty()) {
+                        writer.Key(key);
+                        writer.String(value.c_str(), value.size());
+                    }
+                };
+                writeSource("RequesterLogin", request.requesterLogin);
+                writeSource("SourceMessageId", request.sourceMessageId);
+                writeSource("SourceChannelId", request.sourceChannelId);
+                writeSource("SourceChannelName", request.sourceChannelName);
+                if (request.status == RequestStatus::Failed) {
+                    writer.Key("Retryable");
+                    writer.Bool(true);
+                }
                 writer.Key("RequesterPlatform");
                 writer.String(platform.data(), platform.size());
                 writer.EndObject();
@@ -173,7 +189,9 @@ namespace StandaloneStreamChat::Requests {
 
     SongRequestManager::SongRequestManager() = default;
 
-    SongRequestManager::~SongRequestManager() {
+    SongRequestManager::~SongRequestManager() { Stop(); }
+
+    void SongRequestManager::Stop() {
         {
             std::lock_guard lock(_lock);
             _stopping = true;
@@ -190,6 +208,7 @@ namespace StandaloneStreamChat::Requests {
     void SongRequestManager::Start() {
         if (_worker.joinable())
             return;
+        _stopping = false;
         LoadStored();
         _installer = std::make_unique<Songs::MapInstaller>([this](int64_t id, float fraction) { SetProgress(id, fraction); });
         _worker = std::thread(&SongRequestManager::RunWorker, this);
@@ -214,6 +233,19 @@ namespace StandaloneStreamChat::Requests {
             return;
         }
 
+        std::unordered_set<std::string> pendingKeys;
+        if (!config.allowDuplicates) {
+            for (auto const& item : doc.GetArray()) {
+                auto retryable = Json::Get(&item, "Retryable");
+                if (retryable && retryable->IsTrue())
+                    continue;
+                auto key = Lower(Json::Scalar(Json::Get(&item, "Key")));
+                key.erase(0, std::min(key.find_first_not_of('0'), key.size()));
+                if (IsValidKey(key) && !Json::Scalar(Json::Get(&item, "RequesterName")).empty() &&
+                    PlatformFromName(Json::Scalar(Json::Get(&item, "RequesterPlatform"))))
+                    pendingKeys.insert(std::move(key));
+            }
+        }
         std::lock_guard lock(_lock);
         for (auto const& item : doc.GetArray()) {
             if (_queue.size() >= QueueCapacity)
@@ -225,6 +257,9 @@ namespace StandaloneStreamChat::Requests {
             auto platform = PlatformFromName(Json::Scalar(Json::Get(&item, "RequesterPlatform")));
             if (!IsValidKey(key) || requester.empty() || !platform)
                 continue;
+            auto retryable = Json::Get(&item, "Retryable");
+            if (retryable && retryable->IsTrue() && pendingKeys.contains(key))
+                continue;
             if (!config.allowDuplicates && std::any_of(_queue.begin(), _queue.end(), [&](Entry const& e) { return e.request.key == key; }))
                 continue;
             Entry entry;
@@ -232,6 +267,10 @@ namespace StandaloneStreamChat::Requests {
             entry.request.key = std::move(key);
             entry.request.requester = std::move(requester);
             entry.request.requesterId = std::move(requesterId);
+            entry.request.requesterLogin = Json::Scalar(Json::Get(&item, "RequesterLogin"));
+            entry.request.sourceMessageId = Json::Scalar(Json::Get(&item, "SourceMessageId"));
+            entry.request.sourceChannelId = Json::Scalar(Json::Get(&item, "SourceChannelId"));
+            entry.request.sourceChannelName = Json::Scalar(Json::Get(&item, "SourceChannelName"));
             entry.request.platform = *platform;
             entry.nextLookup = Clock::now();
             _queue.push_back(std::move(entry));
@@ -280,6 +319,29 @@ namespace StandaloneStreamChat::Requests {
         }
     }
 
+    void SongRequestManager::OnModeration(ChatMessage const& event) {
+        std::lock_guard lock(_lock);
+        auto removed = std::erase_if(_queue, [&](Entry const& entry) {
+            auto const& request = entry.request;
+            if (IsInProgress(request.status) ||
+                !Chat::MatchesChannel(event, request.platform, request.sourceChannelId, request.sourceChannelName))
+                return false;
+            switch (event.event) {
+                case Chat::ChatEvent::RemoveMessage:
+                    return !event.messageId.empty() && request.sourceMessageId == event.messageId;
+                case Chat::ChatEvent::RemoveUser:
+                    return !event.userId.empty() ? request.requesterId == event.userId
+                                                : !event.authorLogin.empty() && request.requesterLogin == event.authorLogin;
+                case Chat::ChatEvent::ClearChannel:
+                    return true;
+                default:
+                    return false;
+            }
+        });
+        if (removed > 0)
+            ChangedLocked(true);
+    }
+
     SongRequestManager::Enqueue SongRequestManager::TryEnqueueLocked(ChatMessage const& message, std::string const& key) {
         auto const& config = GetConfig();
         if (!Allowed(message))
@@ -297,7 +359,8 @@ namespace StandaloneStreamChat::Requests {
             return Enqueue::QueueFull;
         // A not-found or failed entry doesn't block asking for the same map again.
         if (!config.allowDuplicates && std::any_of(_queue.begin(), _queue.end(), [&](Entry const& e) {
-                return e.request.key == key && e.request.status != RequestStatus::NotFound && e.request.status != RequestStatus::Failed;
+                return e.request.key == key && e.request.status != RequestStatus::NotFound &&
+                       e.request.status != RequestStatus::Failed && e.request.status != RequestStatus::Unplayable;
             }))
             return Enqueue::Duplicate;
         if (!trusted && config.maxRequestsPerUser > 0) {
@@ -311,6 +374,10 @@ namespace StandaloneStreamChat::Requests {
         entry.request.key = key;
         entry.request.requester = message.author;
         entry.request.requesterId = message.userId;
+        entry.request.requesterLogin = message.authorLogin;
+        entry.request.sourceMessageId = message.messageId;
+        entry.request.sourceChannelId = message.channelId;
+        entry.request.sourceChannelName = message.channelName;
         entry.request.platform = message.platform;
         entry.nextLookup = now;
         _queue.push_back(std::move(entry));
@@ -387,7 +454,7 @@ namespace StandaloneStreamChat::Requests {
             std::vector<SongRequest> requests;
             if (!remove) {
                 for (auto const& entry : _queue) {
-                    if (entry.request.status != RequestStatus::NotFound)
+                    if (entry.request.status != RequestStatus::NotFound && entry.request.status != RequestStatus::Unplayable)
                         requests.push_back(entry.request);
                 }
             }
@@ -401,8 +468,7 @@ namespace StandaloneStreamChat::Requests {
     }
 
     void SongRequestManager::RunWorker() {
-        // The lookup picks what gets downloaded, so it needs a verified server.
-        Net::HttpClient http(_stopping, Net::TlsTrust::Required);
+        std::optional<Net::HttpClient> http;
         std::unique_lock lock(_lock);
         while (!_stopping) {
             auto now = Clock::now();
@@ -430,7 +496,14 @@ namespace StandaloneStreamChat::Requests {
             auto id = due->request.id;
             auto key = due->request.key;
             lock.unlock();
-            auto lookup = LookUpMap(http, key);
+            MapLookup lookup;
+            try {
+                if (!http)
+                    http.emplace(_stopping);
+                lookup = LookUpMap(*http, key);
+            } catch (std::exception const& ex) {
+                lookup.error = ex.what();
+            }
             lock.lock();
             if (!_stopping)
                 ApplyLookupLocked(id, lookup);
@@ -495,7 +568,31 @@ namespace StandaloneStreamChat::Requests {
     }
 
     bool SongRequestManager::CanAccept() const {
-        return !_driving && Songs::MenuState::CanAccept();
+        return !_driving && !_install && !_accepted && Songs::MenuState::CanAccept();
+    }
+
+    void SongRequestManager::MenuRestarting() {
+        ++_driveGeneration;
+        _driving = false;
+        if (_accepted) {
+            SetStatus(*_accepted, RequestStatus::Ready, {});
+            _accepted.reset();
+        }
+        if (!_install)
+            return;
+        if (_install->stage == Stage::Downloading) {
+            _install->openWhenReady = false;
+        } else {
+            auto id = _install->id;
+            auto status = _install->filesInstalled ? RequestStatus::Installed : RequestStatus::Ready;
+            _install.reset();
+            SetStatus(id, status, {});
+        }
+    }
+
+    void SongRequestManager::MenuActivated() {
+        if (_install || _accepted)
+            Drive();
     }
 
     void SongRequestManager::RefreshInstalledRequests() {
@@ -503,11 +600,13 @@ namespace StandaloneStreamChat::Requests {
             return;
         std::lock_guard lock(_lock);
         for (auto& entry : _queue) {
-            if (entry.request.status == RequestStatus::Ready && !entry.request.hash.empty() &&
+            if ((entry.request.status == RequestStatus::Ready || entry.request.status == RequestStatus::Unplayable) &&
+                !entry.request.hash.empty() &&
                 SongCore::API::Loading::GetLevelByHash(entry.request.hash)) {
+                bool save = entry.request.status == RequestStatus::Unplayable;
                 entry.request.status = RequestStatus::Installed;
                 entry.request.detail.clear();
-                ChangedLocked(false);
+                ChangedLocked(save);
             }
         }
     }
@@ -536,9 +635,7 @@ namespace StandaloneStreamChat::Requests {
         auto entry = FindLocked(id);
         if (!entry)
             return;
-        auto status = entry->request.status;
-        if (status == RequestStatus::Preparing || status == RequestStatus::Downloading || status == RequestStatus::Installing ||
-            status == RequestStatus::Selecting)
+        if (IsInProgress(entry->request.status))
             return;
         INFO("Song request denied: {} by {}", entry->request.key, entry->request.requester);
         _queue.erase(_queue.begin() + (entry - _queue.data()));
@@ -550,11 +647,13 @@ namespace StandaloneStreamChat::Requests {
         auto entry = FindLocked(id);
         if (!entry || (entry->request.status == status && entry->request.detail == detail))
             return;
+        auto previous = entry->request.status;
         entry->request.status = status;
         entry->request.detail = std::move(detail);
         if (status != RequestStatus::Downloading)
             entry->request.progress = 0.0f;
-        ChangedLocked(false);
+        ChangedLocked(status == RequestStatus::Failed || status == RequestStatus::Unplayable ||
+                      previous == RequestStatus::Failed || previous == RequestStatus::Unplayable);
     }
 
     void SongRequestManager::RememberInstalled(int64_t id, std::filesystem::path const& folder) {
@@ -583,7 +682,8 @@ namespace StandaloneStreamChat::Requests {
         if (_driving)
             return;
         _driving = true;
-        BSML::MainThreadScheduler::ScheduleUntil([this] { return !Step(); }, [] {});
+        auto generation = ++_driveGeneration;
+        BSML::MainThreadScheduler::ScheduleUntil([this, generation] { return _driveGeneration != generation || !Step(); }, [] {});
     }
 
     bool SongRequestManager::Step() {
@@ -628,23 +728,29 @@ namespace StandaloneStreamChat::Requests {
         _install->hash = request.hash;
         _install->url = request.downloadUrl;
         _install->previousFailure = failure;
+        _install->installedFolder = std::move(installedFolder);
+        _install->folderName = FolderName(request);
         if (request.hash.empty()) {
             FinishInstall(RequestStatus::Failed, "missing map hash");
             return;
         }
+        _install->deadline = Now() + RefreshTimeout;
+    }
+
+    void SongRequestManager::ResolveInstallPaths() {
+        auto& install = *_install;
         auto root = SongCore::API::Loading::GetPreferredCustomLevelPath();
-        auto legacy = root / FolderName(request);
+        auto legacy = root / install.folderName;
         // Hash is part of the path: a different loaded version is never overwritten.
-        _install->folder = root / (FolderName(request) + " [" + request.hash + "]");
+        install.folder = root / (install.folderName + " [" + install.hash + "]");
         // Files on disk are checked every time, so a folder deleted since the
         // last Accept is downloaded again. After existing files failed to load,
         // they are skipped and a fresh copy is downloaded beside them.
-        if (failure == LoadFailure::None) {
-            _install->filesInstalled = (!installedFolder.empty() && Songs::MapInstaller::HasMapFiles(installedFolder)) ||
-                                       Songs::MapInstaller::HasMapFiles(_install->folder);
-            _install->probeExisting = Songs::MapInstaller::HasMapFiles(legacy);
+        if (install.previousFailure == LoadFailure::None) {
+            install.filesInstalled = (!install.installedFolder.empty() && Songs::MapInstaller::HasMapFiles(install.installedFolder)) ||
+                                     Songs::MapInstaller::HasMapFiles(install.folder);
+            install.probeExisting = Songs::MapInstaller::HasMapFiles(legacy);
         }
-        _install->deadline = Now() + RefreshTimeout;
     }
 
     void SongRequestManager::BeginOpening(float now) {
@@ -697,11 +803,10 @@ namespace StandaloneStreamChat::Requests {
                 if (SongCore::API::Loading::GetLevelByHash(install.hash)) {
                     INFO("Requested hash {} is already loaded; skipping download and refresh", install.hash);
                     BeginOpening(now);
-                } else if (install.previousFailure == LoadFailure::DownloadedCopy) {
-                    // A fresh download already failed to load; another refresh
-                    // or download would only repeat that.
-                    FinishInstall(RequestStatus::Failed, std::string(CouldNotLoad));
-                } else if (install.filesInstalled || (install.probeExisting && !install.existingChecked)) {
+                    return;
+                }
+                ResolveInstallPaths();
+                if (install.filesInstalled || (install.probeExisting && !install.existingChecked)) {
                     install.existingChecked = true;
                     install.stage = Stage::WaitingForRefresh;
                     install.deadline = now + RefreshTimeout;
@@ -722,6 +827,10 @@ namespace StandaloneStreamChat::Requests {
                 install.filesInstalled = true;
                 install.downloaded = true;
                 RememberInstalled(id, install.folder);
+                if (!install.openWhenReady) {
+                    FinishInstall(RequestStatus::Installed, "select again after restart");
+                    return;
+                }
                 install.stage = Stage::WaitingForRefresh;
                 install.deadline = now + RefreshTimeout;
                 SetStatus(id, RequestStatus::Installing, "loading installed files");
@@ -772,8 +881,7 @@ namespace StandaloneStreamChat::Requests {
                     // Our own fresh copy: SongCore can't load it, or loads it
                     // under another hash. Retrying wouldn't change that.
                     WARNING("SongCore refreshed without loading downloaded hash {}", install.hash);
-                    RememberLoadFailure(id, LoadFailure::DownloadedCopy);
-                    FinishInstall(RequestStatus::Failed, std::string(CouldNotLoad));
+                    FinishInstall(RequestStatus::Unplayable, std::string(CouldNotLoad));
                 } else {
                     // An older or damaged copy; the next Accept downloads a fresh one.
                     WARNING("SongCore refreshed without loading installed hash {}", install.hash);

@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -48,6 +49,8 @@ namespace StandaloneStreamChat::Chat {
         /// offline or unknown, or nothing to keep the last count (a transient
         /// error). May throw.
         virtual std::optional<int> FetchViewers(Net::HttpClient& http) = 0;
+        /// Discard the old count and any reply still in flight for that session.
+        void InvalidateViewers();
         /// Sleeps in short slices; returns false if asked to stop meanwhile.
         bool SleepFor(std::chrono::milliseconds duration) const;
 
@@ -59,6 +62,8 @@ namespace StandaloneStreamChat::Chat {
        private:
         void RunViewers();
 
+        std::mutex _viewerLock;
+        uint64_t _viewerGeneration = 0;
         std::thread _thread;
         std::thread _viewerThread;
     };

@@ -68,6 +68,7 @@ DECLARE_CLASS_CODEGEN_INTERFACES(StandaloneStreamChat, ChatPanel, UnityEngine::M
     DECLARE_INSTANCE_FIELD(UnityEngine::Vector3, _grabStartPosition);
     DECLARE_INSTANCE_FIELD(UnityEngine::Quaternion, _grabStartRotation);
     DECLARE_INSTANCE_FIELD(int, _lastVersion);
+    DECLARE_INSTANCE_FIELD(int, _heightCheckFrames);
 
     DECLARE_INSTANCE_METHOD(void, Update);
     DECLARE_OVERRIDE_METHOD_MATCH(void, OnPointerDown, &::UnityEngine::EventSystems::IPointerDownHandler::OnPointerDown,

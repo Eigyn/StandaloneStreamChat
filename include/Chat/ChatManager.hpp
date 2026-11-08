@@ -55,6 +55,7 @@ namespace StandaloneStreamChat::Chat {
         void PushLocked(ChatMessage message);
 
         mutable std::mutex _lock;
+        std::mutex _requestDispatchLock;  // serialize request dispatch with platform retirement
         std::deque<ChatMessage> _messages;
         int _version = 0;
         uint64_t _nextSequence = 0;

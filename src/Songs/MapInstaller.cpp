@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cctype>
 #include <stdexcept>
+#include <vector>
 
 namespace StandaloneStreamChat::Songs {
     namespace {
@@ -69,10 +70,34 @@ namespace StandaloneStreamChat::Songs {
             // Different storage after all: copy instead.
             if (!std::filesystem::create_directory(to))
                 throw std::runtime_error("map destination was created by another installer");
-            std::filesystem::copy(from, to, std::filesystem::copy_options::recursive, ec);
-            if (ec) {
+            try {
+                // SongCore can scan while we copy. Publish every Info.dat only
+                // after all files have arrived on the destination filesystem.
+                std::vector<std::filesystem::path> metadata;
+                for (auto const& entry : std::filesystem::recursive_directory_iterator(from)) {
+                    auto relative = entry.path().lexically_relative(from);
+                    if (entry.is_directory())
+                        std::filesystem::create_directory(to / relative);
+                    else if (IsInfoFile(relative))
+                        metadata.push_back(std::move(relative));
+                    else
+                        std::filesystem::copy_file(entry.path(), to / relative);
+                }
+                std::vector<std::pair<std::filesystem::path, std::filesystem::path>> pending;
+                for (auto const& relative : metadata) {
+                    auto final = to / relative;
+                    auto staging = final;
+                    staging += ".ssc-pending";
+                    while (std::filesystem::exists(staging))
+                        staging += "_";
+                    std::filesystem::copy_file(from / relative, staging);
+                    pending.emplace_back(std::move(staging), std::move(final));
+                }
+                for (auto const& [staging, final] : pending)
+                    std::filesystem::rename(staging, final);
+            } catch (...) {
                 RemoveQuietly(to);
-                throw std::runtime_error("could not move the map into CustomLevels: " + ec.message());
+                throw;
             }
         }
 
@@ -176,7 +201,7 @@ namespace StandaloneStreamChat::Songs {
 
     void MapInstaller::Download(std::string const& url, int64_t id, std::string& body) {
         // A map is written to disk, so never accept an unverified server.
-        CURL* curl = Net::NewEasyHandle(_stopping, Net::TlsTrust::Required);
+        CURL* curl = Net::NewEasyHandle(_stopping);
         curl_slist* headers = curl_slist_append(nullptr, Requests::UserAgentHeader().c_str());
         struct Cleanup {
             CURL* curl;
@@ -190,8 +215,6 @@ namespace StandaloneStreamChat::Songs {
         Transfer transfer{&body, &_stopping, &_progress, id};
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
-        curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "https");
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
         // Give up on a stalled transfer (under 1 KB/s for 30 s) or a slow one

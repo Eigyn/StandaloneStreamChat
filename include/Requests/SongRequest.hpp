@@ -14,9 +14,15 @@ namespace StandaloneStreamChat::Requests {
         Downloading,   // zip download in progress, or waiting its turn
         Installing,    // unpacked; waiting for SongCore to load it
         Failed,        // download/install failed; Accept = retry, Deny = remove
+        Unplayable,    // fresh copy failed to load; Deny = remove
         Installed,     // files present; Accept loads/selects without downloading
         Selecting,     // awaiting the filtered collection and confirmed selection
     };
+
+    inline bool IsInProgress(RequestStatus status) {
+        return status == RequestStatus::Preparing || status == RequestStatus::Downloading ||
+               status == RequestStatus::Installing || status == RequestStatus::Selecting;
+    }
 
     /// One queued request. Its position isn't stored: it's the index in the
     /// snapshot, so positions renumber when an entry leaves.
@@ -25,6 +31,8 @@ namespace StandaloneStreamChat::Requests {
         std::string key;  // BeatSaver key, lowercase hex
         std::string requester;
         std::string requesterId;  // the platform's user id; empty if it gave none
+        std::string requesterLogin;
+        std::string sourceMessageId, sourceChannelId, sourceChannelName;
         Chat::ChatPlatform platform = Chat::ChatPlatform::System;
         // Filled by the BeatSaver lookup.
         std::string songName;

@@ -1,7 +1,13 @@
 #include "Net/WebSocket.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cctype>
 #include <chrono>
 #include <stdexcept>
+
+// OpenSSL's SHA1 is exported by the bundled libcurl archive on both targets.
+extern "C" unsigned char* SHA1(unsigned char const* data, size_t size, unsigned char* digest);
 
 namespace StandaloneStreamChat::Net {
     namespace {
@@ -26,6 +32,70 @@ namespace StandaloneStreamChat::Net {
                 out.push_back(i + 2 < bytes.size() ? table[n & 63] : '=');
             }
             return out;
+        }
+
+        std::string_view Trim(std::string_view value) {
+            auto first = value.find_first_not_of(" \t");
+            if (first == value.npos)
+                return {};
+            return value.substr(first, value.find_last_not_of(" \t") - first + 1);
+        }
+
+        bool EqualAscii(std::string_view a, std::string_view b) {
+            return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](unsigned char x, unsigned char y) {
+                return std::tolower(x) == std::tolower(y);
+            });
+        }
+
+        bool HasToken(std::string_view value, std::string_view token) {
+            while (!value.empty()) {
+                auto comma = value.find(',');
+                if (EqualAscii(Trim(value.substr(0, comma)), token))
+                    return true;
+                if (comma == value.npos)
+                    break;
+                value.remove_prefix(comma + 1);
+            }
+            return false;
+        }
+
+        bool ValidUpgrade(std::string_view headers, std::string const& key) {
+            auto end = headers.find("\r\n");
+            auto status = headers.substr(0, end);
+            if (end == headers.npos || (status != "HTTP/1.1 101" && !status.starts_with("HTTP/1.1 101 ")))
+                return false;
+            headers.remove_prefix(end + 2);
+
+            auto challenge = key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+            std::array<unsigned char, 20> digest{};
+            if (!SHA1(reinterpret_cast<unsigned char const*>(challenge.data()), challenge.size(), digest.data()))
+                return false;
+            auto expected = Base64({reinterpret_cast<char const*>(digest.data()), digest.size()});
+            bool upgrade = false, connection = false, accepted = false;
+            while (!headers.empty()) {
+                end = headers.find("\r\n");
+                auto line = headers.substr(0, end);
+                auto colon = line.find(':');
+                if (colon == line.npos)
+                    return false;
+                auto name = line.substr(0, colon);
+                auto value = Trim(line.substr(colon + 1));
+                if (EqualAscii(name, "Upgrade"))
+                    upgrade |= EqualAscii(value, "websocket");
+                else if (EqualAscii(name, "Connection"))
+                    connection |= HasToken(value, "Upgrade");
+                else if (EqualAscii(name, "Sec-WebSocket-Accept")) {
+                    if (accepted || value != expected)
+                        return false;
+                    accepted = true;
+                } else if (EqualAscii(name, "Sec-WebSocket-Extensions") || EqualAscii(name, "Sec-WebSocket-Protocol")) {
+                    return false;  // the request offered neither
+                }
+                if (end == headers.npos)
+                    break;
+                headers.remove_prefix(end + 2);
+            }
+            return upgrade && connection && accepted;
         }
     }
 
@@ -54,11 +124,12 @@ namespace StandaloneStreamChat::Net {
         std::string key(16, '\0');
         for (auto& c : key)
             c = static_cast<char>(_rng());
+        key = Base64(key);
         std::string request = "GET " + path + " HTTP/1.1\r\n" +
                               "Host: " + std::string(authority) + "\r\n" +
                               "Upgrade: websocket\r\n"
                               "Connection: Upgrade\r\n"
-                              "Sec-WebSocket-Key: " + Base64(key) + "\r\n" +
+                              "Sec-WebSocket-Key: " + key + "\r\n" +
                               "Sec-WebSocket-Version: 13\r\n";
         for (auto const& header : headers)
             request += header + "\r\n";
@@ -74,9 +145,8 @@ namespace StandaloneStreamChat::Net {
             if (!_tls.Receive(_buffer, 250))
                 throw std::runtime_error("closed during upgrade");
         }
-        std::string statusLine = _buffer.substr(0, _buffer.find("\r\n"));
-        if (statusLine.find(" 101") == std::string::npos)
-            throw std::runtime_error("upgrade refused: " + statusLine);
+        if (headerEnd > MaxUpgradeResponse || !ValidUpgrade(std::string_view(_buffer).substr(0, headerEnd), key))
+            throw std::runtime_error("invalid WebSocket upgrade response");
         _buffer.erase(0, headerEnd + 4);
     }
 

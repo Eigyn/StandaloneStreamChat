@@ -77,8 +77,7 @@ namespace {
     }
 
     bool Busy(RequestStatus status) {
-        return status == RequestStatus::Preparing || status == RequestStatus::Downloading || status == RequestStatus::Installing ||
-               status == RequestStatus::Selecting;
+        return Requests::IsInProgress(status);
     }
 
     // Busy steps without a percentage, shown with a spinning ring.
@@ -124,7 +123,7 @@ namespace {
         text += " · </color><color=#7FD4FF>" + request.key + "</color>";
         if (request.status == RequestStatus::NotFound)
             text += " <color=#FF6B6B>[not found]</color>";
-        else if (request.status == RequestStatus::Failed)
+        else if (request.status == RequestStatus::Failed || request.status == RequestStatus::Unplayable)
             text += " <color=#FF6B6B>[failed" + detail + "]</color>";
         else if (request.status == RequestStatus::Installed)
             text += request.detail.empty() ? " <color=#7FD4FF>[installed - select]</color>"
@@ -233,7 +232,7 @@ namespace StandaloneStreamChat {
         _status = static_cast<int>(request.status);
         _fill = request.progress;
         bool busy = Busy(request.status);
-        _accept->get_gameObject()->SetActive(!busy);
+        _accept->get_gameObject()->SetActive(!busy && request.status != RequestStatus::Unplayable);
         _deny->get_gameObject()->SetActive(!busy);
         _progress->get_gameObject()->SetActive(busy);
         SetCanAccept(canAccept);

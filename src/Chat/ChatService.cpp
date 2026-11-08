@@ -31,6 +31,12 @@ namespace StandaloneStreamChat::Chat {
             _viewerThread.join();
     }
 
+    void ChatService::InvalidateViewers() {
+        std::lock_guard lock(_viewerLock);
+        ++_viewerGeneration;
+        _viewers = -1;
+    }
+
     void ChatService::RunViewers() {
         using namespace std::chrono_literals;
         // Its own connection: HttpClient isn't thread-safe, and the chat
@@ -43,10 +49,18 @@ namespace StandaloneStreamChat::Chat {
                 continue;
             }
             try {
+                uint64_t generation;
+                {
+                    std::lock_guard lock(_viewerLock);
+                    generation = _viewerGeneration;
+                }
                 if (!http)
                     http = std::make_unique<Net::HttpClient>(_stopping);
-                if (auto count = FetchViewers(*http))
-                    _viewers = *count;
+                if (auto count = FetchViewers(*http)) {
+                    std::lock_guard lock(_viewerLock);
+                    if (generation == _viewerGeneration && GetConfig().showViewerCounts)
+                        _viewers = *count;
+                }
             } catch (std::exception const& ex) {
                 if (_stopping)
                     break;

@@ -177,7 +177,7 @@ namespace StandaloneStreamChat::UI {
             result.animation = {};
         }
         void Run() {
-            Net::HttpClient http(_stopping);
+            std::optional<Net::HttpClient> http;
             while (!_stopping) {
                 Job job;
                 {
@@ -188,9 +188,11 @@ namespace StandaloneStreamChat::UI {
                 }
                 Result result; result.key = job.key;
                 try {
+                    if (!http)
+                        http.emplace(_stopping);
                     bool animate = job.animate && _animationsEnabled && job.epoch == _animationEpoch;
                     auto fetch = [&](std::string const& url) {
-                        return http.Get(url, {}, [](std::string_view body) { return body.size() > MaxDownloadBytes; });
+                        return http->Get(url, {}, [](std::string_view body) { return body.size() > MaxDownloadBytes; });
                     };
                     auto response = fetch(animate ? job.url : job.fallback);
                     if ((!response.Ok() || response.body.size() > MaxDownloadBytes) && animate && job.url != job.fallback)
@@ -327,7 +329,7 @@ namespace StandaloneStreamChat::UI {
                 entry.status = Status::Unavailable;
                 entry.failedAt = std::chrono::steady_clock::now() - RetryFailedAfter + std::chrono::seconds(5);
             }
-            return entry.status;
+            return Status::Loading;
         }
         if (entry.status == Status::Ready) {
             entry.lastUsed = ++_useCounter;
@@ -339,7 +341,7 @@ namespace StandaloneStreamChat::UI {
                 entry.failedAt = std::chrono::steady_clock::now() - RetryFailedAfter + std::chrono::seconds(5);
             }
         }
-        return entry.status;
+        return entry.status == Status::Unavailable ? Status::Loading : entry.status;
     }
 
     TMPro::TMP_SpriteAsset* EmoteAtlas::SpriteAsset() {
@@ -373,11 +375,21 @@ namespace StandaloneStreamChat::UI {
                 for (auto const& [key, entry] : _entries) {
                     bytes += entry.animation.Bytes(); count += entry.animation.frames.size() > 1;
                 }
-                if (_animationsEnabled && _references.Contains(result.key) && result.animation.frames.size() > 1 &&
-                    count < MaxAnimatedEmotes && bytes + result.animation.Bytes() <= MaxResidentAnimationBytes) {
-                    it->second.animation = std::move(result.animation);
-                    it->second.nextFrame = std::chrono::steady_clock::now() + std::chrono::milliseconds(it->second.animation.frames.front().durationMs);
-                    INFO("Animation {}: {} frames, {} bytes; resident {} clips/{} bytes", result.key, it->second.animation.frames.size(), it->second.animation.Bytes(), count + 1, bytes + it->second.animation.Bytes());
+                if (_animationsEnabled && _references.Contains(result.key) && result.animation.frames.size() > 1) {
+                    auto fits = [&] { return count < MaxAnimatedEmotes && bytes + result.animation.Bytes() <= MaxResidentAnimationBytes; };
+                    for (auto candidate = _entries.begin(); !fits() && candidate != _entries.end();) {
+                        auto cached = candidate++;
+                        if (cached->second.animation.frames.size() > 1 && !_references.Contains(cached->first)) {
+                            bytes -= cached->second.animation.Bytes();
+                            --count;
+                            Remove(cached->first);
+                        }
+                    }
+                    if (fits()) {
+                        it->second.animation = std::move(result.animation);
+                        it->second.nextFrame = std::chrono::steady_clock::now() + std::chrono::milliseconds(it->second.animation.frames.front().durationMs);
+                        INFO("Animation {}: {} frames, {} bytes; resident {} clips/{} bytes", result.key, it->second.animation.frames.size(), it->second.animation.Bytes(), count + 1, bytes + it->second.animation.Bytes());
+                    }
                 }
                 addedKeys.push_back(result.key);
             } else {
@@ -407,13 +419,19 @@ namespace StandaloneStreamChat::UI {
                 INFO("Emote {}: added as {}, TMP finds it at index {}", key, name, _asset->GetSpriteIndexFromName(name));
             }
         }
+        if (now >= _nextRetryCheck) {
+            _nextRetryCheck = now + std::chrono::seconds(1);
+            if (std::any_of(_entries.begin(), _entries.end(), [&](auto const& item) {
+                return item.second.status == Status::Unavailable && _references.Contains(item.first) &&
+                       now - item.second.failedAt > RetryFailedAfter;
+            }))
+                return true;
+        }
         return !addedKeys.empty();
     }
 
     void EmoteAtlas::RetainRows(std::span<uint64_t const> rows) {
         _references.Retain(rows);
-        for (auto& [key, entry] : _entries)
-            if (!_references.Contains(key)) entry.animation = {};
     }
 
     void EmoteAtlas::ConfigureAnimations(bool enabled) {

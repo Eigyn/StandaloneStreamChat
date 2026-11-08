@@ -209,6 +209,9 @@ namespace StandaloneStreamChat::Songs {
             }
             if (crc != entry.crc)
                 Fail("checksum mismatch in " + entry.name);
+            out.close();
+            if (!out)
+                throw std::runtime_error("could not finish writing " + relative.string());
         }
     }
 }

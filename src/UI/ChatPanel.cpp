@@ -724,6 +724,7 @@ namespace StandaloneStreamChat {
         // New text: back to TMP's own height, checked once it has been drawn.
         row->_fit->set_minHeight(-1.0f);
         row->_heightChecks = 3;
+        _heightCheckFrames = 3;
 
         // Highlight Messages: a dark band behind the whole message.
         row->_background->set_enabled(config.highlightMessages || message.isHighlighted || message.isMention);
@@ -809,7 +810,10 @@ namespace StandaloneStreamChat {
         }
 
         // Before this frame's renders: their text is drawn only after Update.
-        FitRowHeights();
+        if (_heightCheckFrames > 0) {
+            --_heightCheckFrames;
+            FitRowHeights();
+        }
 
         auto version = chat.Version();
         std::vector<ChatMessage> messages;

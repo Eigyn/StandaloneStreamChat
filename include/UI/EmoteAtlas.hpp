@@ -43,7 +43,7 @@ namespace StandaloneStreamChat::UI {
         /// queues the download (once) and says whether it's still coming.
         Status Append(std::string& out, Chat::ChatSegment const& emote);
         /// Turns finished downloads into sprites, a few per call. True if any
-        /// were added, so text waiting on them can be rebuilt.
+        /// were added or a deferred download is due, so waiting text can be rebuilt.
         bool Pump();
         void BeginRow(uint64_t row) { _references.Begin(row); }
         void EndRow() { _references.End(); }
@@ -92,5 +92,6 @@ namespace StandaloneStreamChat::UI {
         uint64_t _animationGeneration = 0;
         bool _pixelsDirty = false;
         std::chrono::steady_clock::time_point _nextAnimationTick{};
+        std::chrono::steady_clock::time_point _nextRetryCheck{};
     };
 }

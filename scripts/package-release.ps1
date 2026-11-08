@@ -16,6 +16,11 @@ $target = if ($GameVersion -eq '1.40.8') {
     @{ Qmod = 'StandaloneStreamChat.qmod'; PackageVersion = '1.45.3_30054' }
 }
 $qmodPath = Join-Path $projectRoot $target.Qmod
+$packageRoot = Split-Path -Parent $qmodPath
+$package = Get-Content -LiteralPath (Join-Path $packageRoot 'qpm.json') -Raw | ConvertFrom-Json
+$binaryName = [string]$package.info.additionalData.overrideSoName
+$binaryPath = Join-Path $packageRoot "build/$binaryName"
+$expectedBinaryHash = (Get-FileHash -LiteralPath $binaryPath -Algorithm SHA256).Hash
 $licenseDirectory = Join-Path $projectRoot 'licenses'
 $noticeFiles = @(
     Get-Item -LiteralPath (Join-Path $projectRoot 'LICENSE')
@@ -51,6 +56,19 @@ try {
     $version = [string]$manifest.version
     if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$') {
         throw "Invalid release version in QMOD: $version"
+    }
+    if ($version -ne $package.info.version) {
+        throw "QMOD version $version does not match the project version $($package.info.version)."
+    }
+    $libraries = @($qmod.Entries | Where-Object FullName -CEQ $binaryName)
+    if (@($manifest.lateModFiles).Count -ne 1 -or $manifest.lateModFiles[0] -cne $binaryName -or $libraries.Count -ne 1) {
+        throw "Expected exactly one late mod library named $binaryName."
+    }
+    $stream = $libraries[0].Open()
+    try { $archivedBinaryHash = [System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($stream)) }
+    finally { $stream.Dispose() }
+    if ($archivedBinaryHash -ne $expectedBinaryHash) {
+        throw "The QMOD library does not match $binaryPath."
     }
     foreach ($file in $noticeFiles) {
         foreach ($old in @($qmod.Entries | Where-Object FullName -EQ $file.Name)) {

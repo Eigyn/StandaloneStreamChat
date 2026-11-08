@@ -5,19 +5,19 @@
 #include <deque>
 
 namespace StandaloneStreamChat::Chat {
+    inline bool MatchesChannel(ChatMessage const& event, ChatPlatform platform, std::string_view id, std::string_view name) {
+        if (event.platform != platform)
+            return false;
+        if (!event.channelId.empty() && !id.empty())
+            return event.channelId == id;
+        return !event.channelName.empty() && event.channelName == name;
+    }
+
     // Called under ChatManager's history lock. Control events share the same
     // callback/order as messages, and never enter the rendered history.
     inline bool ApplyModeration(std::deque<ChatMessage>& messages, ChatMessage const& event) {
         auto channelMatches = [&](ChatMessage const& message) {
-            if (message.platform != event.platform)
-                return false;
-            if (!event.channelId.empty() && !message.channelId.empty()) {
-                if (event.channelId != message.channelId)
-                    return false;
-            } else if (event.channelName.empty() || event.channelName != message.channelName) {
-                return false;
-            }
-            return true;
+            return MatchesChannel(event, message.platform, message.channelId, message.channelName);
         };
         if (event.event == ChatEvent::RemoveMessage) {
             bool changed = false;
