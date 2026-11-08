@@ -13,7 +13,7 @@ $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $target = if ($GameVersion -eq '1.40.8') {
     @{ Qmod = 'bs-1.40.8/StandaloneStreamChat-1.40.8.qmod'; PackageVersion = '1.40.8_7379' }
 } else {
-    @{ Qmod = 'StandaloneStreamChat.qmod'; PackageVersion = '1.45.3_30054' }
+    @{ Qmod = 'StandaloneStreamChat-1.45.3.qmod'; PackageVersion = '1.45.3_30054' }
 }
 $qmodPath = Join-Path $projectRoot $target.Qmod
 $packageRoot = Split-Path -Parent $qmodPath

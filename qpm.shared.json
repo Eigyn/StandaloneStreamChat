@@ -35,7 +35,7 @@
         "./extern/libs"
       ],
       "qmodIncludeFiles": [],
-      "qmodOutput": "StandaloneStreamChat"
+      "qmodOutput": "StandaloneStreamChat-1.45.3.qmod"
     },
     "dependencies": [
       {
