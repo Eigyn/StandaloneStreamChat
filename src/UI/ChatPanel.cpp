@@ -64,6 +64,10 @@ namespace {
     // Only the newest messages can fit on the panel; cap the rows kept.
     constexpr size_t MaxRenderedMessages = 40;
     constexpr float RowSpacing = 0.6f;
+    // FitRowHeights grows a row past TMP's layout height by at most this
+    // many font sizes, or this share of the row, whichever is more.
+    constexpr float MaxRowGrowthLines = 2.0f;
+    constexpr float MaxRowGrowthShare = 0.5f;
 
     using UI::Escape;
 
@@ -760,8 +764,13 @@ namespace StandaloneStreamChat {
             if (overflow <= 0.05f)
                 continue;
             // Room for the drawn text plus a little for descenders; the row
-            // keeps this until its text changes again.
-            float needed = rect.get_height() + overflow + label->get_fontSize() * 0.15f;
+            // keeps this until its text changes again. Sprites only add a
+            // little per line, so the growth is capped: text that draws far
+            // outside its layout (stacked combining marks) can't take over
+            // the feed, and the excess stays clipped by its mask.
+            float fontSize = label->get_fontSize();
+            float growth = std::min(overflow + fontSize * 0.15f, std::max(fontSize * MaxRowGrowthLines, rect.get_height() * MaxRowGrowthShare));
+            float needed = rect.get_height() + growth;
             if (needed > row->_fit->get_minHeight()) {
                 row->_fit->set_minHeight(needed);
                 if (row->_heightChecks == 2)  // log once per render

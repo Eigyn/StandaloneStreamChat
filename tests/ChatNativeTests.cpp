@@ -312,6 +312,54 @@ void OversizedImages() {
     Check(take(downloader, result) && result.bytes.empty() && result.rgba.empty(), "oversized non-GIF image is dropped");
     std::cout << "PASS oversized GIFs keep their first frame; other oversized images are dropped\n";
 }
+// TMP's pre-parse tag hash (GetMarkupTagHashCode in TMP 3.0.6 and 4.0): it
+// reads from just after a '<' up to '>', '=' or a space, at most 16 chars.
+int32_t PreParseHash(std::string_view text) {
+    uint32_t hash = 0;
+    for (size_t i = 0; i < text.size() && i < 16; i++) {
+        auto c = static_cast<unsigned char>(text[i]);
+        if (c == '>' || c == '=' || c == ' ') break;
+        if (c >= 'a' && c <= 'z') c -= 32;
+        hash = ((hash << 5) + hash) ^ c;
+    }
+    return static_cast<int32_t>(hash);
+}
+// True when every '<' and '\' in `escaped` is part of one of Escape()'s own
+// tokens, so TMP never reads a character the viewer chose right after one.
+bool OnlyEscapeTokens(std::string_view escaped) {
+    constexpr std::string_view tokens[] = {"<noparse><</noparse>", "<noparse>\\</noparse>"};
+    for (size_t i = 0; i < escaped.size();) {
+        auto token = std::find_if(std::begin(tokens), std::end(tokens), [&](std::string_view t) { return escaped.substr(i).starts_with(t); });
+        if (token != std::end(tokens)) { i += token->size(); continue; }
+        auto c = static_cast<unsigned char>(escaped[i]);
+        if (c == '<' || c == '\\' || c < 0x20 || c == 0x7F) return false;
+        i++;
+    }
+    return true;
+}
+void RichTextEscape() {
+    using UI::Escape;
+    // The hash port matches TMP's own SLASH_NO_PARSE constant.
+    Check(PreParseHash("/noparse>") == -294095813, "TMP pre-parse hash port");
+    // At the literal '<' inside an escape token, TMP's pre-parse reads "</noparse"; it must not be a tag it acts on.
+    int32_t inner = PreParseHash("</noparse>");
+    for (auto tag : {"noparse", "/noparse", "br", "cr", "nbsp", "zwsp", "zwj", "shy", "a", "/a", "style", "/style"})
+        Check(inner != PreParseHash(tag), "an escaped '<' never pre-parses as a tag");
+    for (std::string_view attack : {"</noparse=1><size=300%><color=#FF0000>TEST", "</noparse x><sprite name=\"ssc3\"> <b>Streamer</b>: hi",
+                                    "</NOPARSE =><b>bold", "</nopart^><size=300%>collision", "\\u003C/noparse><size=300%>escaped",
+                                    "\\U0000003C/noparse>", "</no</NoParse>parse><size=200%>fixture</size>", "<br><br><br>tall",
+                                    "<style=\"Title\">styled</style>", "a\\\\b\\nc", "trailing \\", "trailing <"}) {
+        Check(OnlyEscapeTokens(Escape(attack)), "viewer text can't start a tag or an escape");
+        // Pieces escaped separately and joined (emote words between them) stay safe too.
+        Check(OnlyEscapeTokens(Escape(attack.substr(0, attack.size() / 2)) + Escape(attack.substr(attack.size() / 2))), "escaped pieces join safely");
+    }
+    Check(Escape("</noparse=1><size=300%>TEST") == "<noparse><</noparse>/noparse=1><noparse><</noparse>size=300%>TEST", "'<' is drawn from its own noparse block");
+    Check(Escape("\\u003C") == "<noparse>\\</noparse>u003C", "'\\' is drawn from its own noparse block");
+    Check(Escape("a\nb\r\tc\x7F" "d\xE2\x80\xA8" "e\xE2\x80\xA9" "f") == "a b  c d e f", "line breaks and control characters become spaces");
+    Check(Escape(std::string_view("a\0b", 3)) == "a b", "a NUL can't cut the row short");
+    Check(Escape("héllo 😀 &lt; > plain") == "héllo 😀 &lt; > plain", "ordinary text is unchanged");
+    std::cout << "PASS rich-text escaping leaves no tag or escape a viewer can start\n";
+}
 }
 int main(int argc, char** argv) {
     if (argc == 2) {
@@ -323,8 +371,7 @@ int main(int argc, char** argv) {
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }
-    Fixture::Check(StandaloneStreamChat::UI::Escape("</no</NoParse>parse><size=200%>fixture</size>") ==
-                   "<noparse><size=200%>fixture</size></noparse>", "closing tags formed by erasing another tag stay literal");
+    RichTextEscape();
     Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure(); OversizedImages();
     std::cout << "All chat native tests passed; external network traffic: none.\n";
 }
