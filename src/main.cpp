@@ -4,6 +4,7 @@
 #include "Requests/SongRequestManager.hpp"
 #include "UI/ChatPanel.hpp"
 #include "UI/Settings.hpp"
+#include "Updates/UpdateCheck.hpp"
 
 #include "scotland2/shared/loader.hpp"
 #ifdef SSC_BS_1_40
@@ -56,6 +57,7 @@ MAKE_HOOK_MATCH(MainMenuViewController_DidActivate, &GlobalNamespace::MainMenuVi
     if (firstActivation) {
         StandaloneStreamChat::ChatPanel::EnsureCreated();
         WarnIfOldVersionLoaded();
+        StandaloneStreamChat::Updates::CheckForUpdate();
     }
     StandaloneStreamChat::Requests::SongRequestManager::Instance().MenuActivated();
 }

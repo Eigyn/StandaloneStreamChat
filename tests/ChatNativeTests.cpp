@@ -34,6 +34,7 @@
 #include "Net/SilenceWatchdog.hpp"
 #include "Net/TlsConnection.hpp"
 #include "Net/WebSocket.hpp"
+#include "Updates/UpdateCheck.hpp"
 #include "logging.hpp"
 #include "Downloader-under-test.hpp"
 
@@ -395,6 +396,22 @@ void Watchdog() {
           "a missed server ping plus grace means the connection is dead");
     std::cout << "PASS silent connections are probed and then dropped\n";
 }
+void UpdateNotice() {
+    using namespace Updates;
+    auto newer = [](std::string_view latest, std::string_view current) { return IsNewer(*ParseVersion(latest), *ParseVersion(current)); };
+    Check(ParseVersion("v0.10.0") && ParseVersion("0.10.1-2") && ParseVersion("V1.2.3")->numbers == std::array<unsigned, 3>{1, 2, 3}, "release and test versions parse");
+    for (auto bad : {"", "v", "0.10", "0.10.x", "0.10.1-", "0.10.1 ", "0.10.1-a b", "0.10.1+1", "<b>1.0.0</b>"})
+        Check(!ParseVersion(bad), "anything else is rejected");
+    Check(newer("v0.10.1", "0.10.0") && newer("v0.11.0", "0.10.9") && newer("v1.0.0", "0.99.99"), "a higher release is newer");
+    Check(newer("v0.10.1", "0.10.1-2"), "a release is newer than its own test builds");
+    Check(!newer("v0.10.0", "0.10.1-2") && !newer("v0.10.1", "0.10.1") && !newer("v0.9.4", "0.10.0"), "same or older releases are not");
+    Check(newer("0.10.1-10", "0.10.1-9") && !newer("0.10.1-2", "0.10.1-3"), "test builds compare by number");
+    Check(ReleaseTag(R"({"tag_name":"v0.10.0","draft":false,"prerelease":false,"assets":[]})") == "v0.10.0", "release tag from GitHub's reply");
+    Check(!ReleaseTag(R"({"tag_name":"v0.11.0","prerelease":true})") && !ReleaseTag(R"({"tag_name":"v0.11.0","draft":true})") &&
+              !ReleaseTag(R"({"message":"Not Found"})") && !ReleaseTag("<html>rate limited</html>"),
+          "drafts, prereleases and error replies give no tag");
+    std::cout << "PASS update notices compare release and test versions\n";
+}
 }
 int main(int argc, char** argv) {
     if (argc == 2) {
@@ -406,7 +423,7 @@ int main(int argc, char** argv) {
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }
-    RichTextEscape(); Watchdog();
+    RichTextEscape(); Watchdog(); UpdateNotice();
     Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure(); OversizedImages();
     std::cout << "All chat native tests passed; external network traffic: none.\n";
 }
