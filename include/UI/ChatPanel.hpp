@@ -29,6 +29,12 @@
 // The lock, move-mode and requests buttons sit in a column outside
 // its left edge; the requests button swaps the feed for the request queue.
 //
+// The game's pointer ignores anything outside a curved canvas's rectangle,
+// so the floating screen is wider (and if need be taller) than the panel by
+// the same margin on each side, keeping the panel centred on the curve. The
+// panel itself, backdrop included, is the `_panelArea` child, and the
+// outside button column and request scroll strip stay inside the canvas.
+//
 // Moving: while unlocked, pressing anywhere on the backdrop grabs the panel.
 // The press reaches this component by bubbling up from the backdrop graphic;
 // BSML's 3D grab handle never received pointer hits on this screen.
@@ -36,6 +42,8 @@ DECLARE_CLASS_CODEGEN_INTERFACES(StandaloneStreamChat, ChatPanel, UnityEngine::M
                                  UnityEngine::EventSystems::IPointerDownHandler*, UnityEngine::EventSystems::IPointerUpHandler*,
                                  UnityEngine::EventSystems::IEventSystemHandler*) {
     DECLARE_INSTANCE_FIELD(BSML::FloatingScreen*, _screen);
+    // The panel's own rect, centred on the larger screen; everything is under it.
+    DECLARE_INSTANCE_FIELD(UnityEngine::RectTransform*, _panelArea);
     DECLARE_INSTANCE_FIELD(HMUI::ImageView*, _background);
     DECLARE_INSTANCE_FIELD(UnityEngine::RectTransform*, _rows);  // ChatRows, oldest first
     // Set when every row must be rebuilt (a setting changed), not just new ones added.

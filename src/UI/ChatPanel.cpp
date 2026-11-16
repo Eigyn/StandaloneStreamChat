@@ -260,6 +260,33 @@ namespace {
     constexpr float SideButtonSize = 7.0f;
     constexpr float SideButtonGap = 1.2f;
     constexpr float SideButtonTop = -2.4f;
+    constexpr int SideButtonCount = 3;
+    // How far the column reaches left of the panel, and down from its top.
+    constexpr float SideColumnWidth = SideButtonGap + SideButtonSize;
+    constexpr float SideColumnHeight = -SideButtonTop + SideButtonCount * SideButtonSize + (SideButtonCount - 1) * SideButtonGap;
+
+    // On a curved canvas the game's pointer finds nothing outside the
+    // canvas's rectangle (VRGraphicRaycaster checks it before any element;
+    // on a flat one it doesn't), so the screen keeps room for the button
+    // column on the left and the request scroll strip on the right. The same
+    // margin goes on both sides so the panel stays centred on the curve.
+    constexpr float HitSlack = 1.0f;
+    constexpr float HorizontalHitMargin =
+        std::max(SideColumnWidth, RequestListLayout::ScrollStripGap + RequestListLayout::ScrollStripWidth) + HitSlack;
+
+    // The floating screen's size for a panel of this size: the panel plus
+    // the margins above, and height too if the column reaches below it.
+    UnityEngine::Vector2 ScreenSizeFor(float panelWidth, float panelHeight) {
+        float verticalMargin = std::max(0.0f, SideColumnHeight + HitSlack - panelHeight);
+        return {panelWidth + 2.0f * HorizontalHitMargin, panelHeight + 2.0f * verticalMargin};
+    }
+
+    void Stretch(UnityEngine::RectTransform* rect) {
+        rect->set_anchorMin({0.0f, 0.0f});
+        rect->set_anchorMax({1.0f, 1.0f});
+        rect->set_offsetMin({0.0f, 0.0f});
+        rect->set_offsetMax({0.0f, 0.0f});
+    }
 
     // Viewer strip in a band across the top; the feed starts below it.
     constexpr float ViewerStripTopInset = 2.3f;
@@ -299,7 +326,7 @@ namespace StandaloneStreamChat {
         // handle's collider would only stop the pointer reaching the backdrop.
         auto const& config = GetConfig();
         auto screen = BSML::Lite::CreateFloatingScreen(
-            {config.panelWidth, config.panelHeight},
+            ScreenSizeFor(config.panelWidth, config.panelHeight),
             {config.positionX, config.positionY, config.positionZ},
             {config.rotationX, config.rotationY, 0.0f},
             0.0f, true, false);
@@ -307,18 +334,34 @@ namespace StandaloneStreamChat {
         screenGo->set_name("StandaloneStreamChatPanel");
         UnityEngine::Object::DontDestroyOnLoad(screenGo);
 
-        // BSML clips the whole screen to its rect, which would hide (and block
-        // clicks to) the button column outside the left edge. The feed has its
-        // own mask (ChatContent below), so the screen-wide one isn't needed.
+        // BSML clips the whole screen to its rect. The feed has its own mask
+        // (ChatContent below), so the screen-wide one isn't needed.
         if (auto screenMask = screenGo->GetComponent<UnityEngine::UI::RectMask2D*>())
             screenMask->set_enabled(false);
 
-        // BSML's backdrop is the only ImageView so far. Its stock material
-        // mostly ignores vertex color, so swap in NoGlow to make the Color
-        // setting show. It is also the grab surface:
+        // The panel proper, centred on the larger screen (see ScreenSizeFor).
+        // Everything below is placed relative to it.
+        auto panelGo = UnityEngine::GameObject::New_ctor("PanelArea");
+        panelGo->set_layer(screenGo->get_layer());
+        auto panelArea = panelGo->AddComponent<UnityEngine::RectTransform*>();
+        panelArea->SetParent(screen->get_transform(), false);
+        panelArea->set_anchorMin({0.5f, 0.5f});
+        panelArea->set_anchorMax({0.5f, 0.5f});
+        panelArea->set_pivot({0.5f, 0.5f});
+        panelArea->set_anchoredPosition({0.0f, 0.0f});
+        panelArea->set_sizeDelta({config.panelWidth, config.panelHeight});
+
+        // BSML's backdrop is the only ImageView so far. It fills the screen,
+        // so it moves into the panel area to cover only the panel. Its stock
+        // material mostly ignores vertex color, so swap in NoGlow to make the
+        // Color setting show. It is also the grab surface:
         // ApplyLockState makes it catch the pointer only while unlocked.
         auto background = screenGo->GetComponentInChildren<HMUI::ImageView*>(true);
         if (background) {
+            auto backgroundRect = background->get_rectTransform();
+            backgroundRect->SetParent(panelArea, false);
+            backgroundRect->SetAsFirstSibling();
+            Stretch(backgroundRect);
             background->set_material(BSML::Helpers::GetUINoGlowMat());
             // From here on the panel draws its own rounded backdrop (Corners
             // setting); the first time, start it at BSML's rounding.
@@ -332,7 +375,7 @@ namespace StandaloneStreamChat {
         // strip is shown (RefreshViewerStrip).
         auto maskGo = UnityEngine::GameObject::New_ctor("ChatContent");
         auto maskRect = maskGo->AddComponent<UnityEngine::RectTransform*>();
-        maskRect->SetParent(screen->get_transform(), false);
+        maskRect->SetParent(panelArea, false);
         maskRect->set_anchorMin({0.0f, 0.0f});
         maskRect->set_anchorMax({1.0f, 1.0f});
         maskRect->set_offsetMin({3.0f, ContentInset});
@@ -342,7 +385,7 @@ namespace StandaloneStreamChat {
         // Viewer strip: [icon count] per platform, packed right in the top band.
         auto stripGo = UnityEngine::GameObject::New_ctor("ViewerCounts");
         auto strip = stripGo->AddComponent<UnityEngine::RectTransform*>();
-        strip->SetParent(screen->get_transform(), false);
+        strip->SetParent(panelArea, false);
         strip->set_anchorMin({0.0f, 1.0f});
         strip->set_anchorMax({1.0f, 1.0f});
         strip->set_pivot({0.5f, 1.0f});
@@ -377,6 +420,7 @@ namespace StandaloneStreamChat {
 
         auto panel = screenGo->AddComponent<ChatPanel*>();
         panel->_screen = screen;
+        panel->_panelArea = panelArea;
         panel->_background = background;
         panel->_rows = rows;
         panel->_rerenderRows = true;
@@ -403,9 +447,8 @@ namespace StandaloneStreamChat {
                 instance->ToggleRequestsMode();
         });
 
-        auto screenRect = screen->get_transform().cast<UnityEngine::RectTransform>();
-        panel->_requestList = RequestList::Create(maskRect, screenRect, background);
-        auto label = BSML::Lite::CreateText(screen->get_transform(), "", TMPro::FontStyles::Normal, RequestsLabelFontSize);
+        panel->_requestList = RequestList::Create(maskRect, panelArea, background);
+        auto label = BSML::Lite::CreateText(panelArea, "", TMPro::FontStyles::Normal, RequestsLabelFontSize);
         label->set_alignment(TMPro::TextAlignmentOptions::MidlineLeft);
         SetWordWrap(label, false);
         label->set_overflowMode(TMPro::TextOverflowModes::Ellipsis);
@@ -429,10 +472,11 @@ namespace StandaloneStreamChat {
     }
 
     HMUI::ImageView* ChatPanel::CreateSideButton(StringW name, int slot, std::function<void()> onClick) {
-        // Anchored to the panel's top-left corner, right edge one gap outside it.
+        // Anchored to the panel's top-left corner, right edge one gap outside
+        // it (still on the screen's canvas: see ScreenSizeFor).
         auto go = UnityEngine::GameObject::New_ctor(name);
         auto rect = go->AddComponent<UnityEngine::RectTransform*>();
-        rect->SetParent(_screen->get_transform(), false);
+        rect->SetParent(_panelArea, false);
         rect->set_anchorMin({0.0f, 1.0f});
         rect->set_anchorMax({0.0f, 1.0f});
         rect->set_pivot({1.0f, 1.0f});
@@ -585,7 +629,8 @@ namespace StandaloneStreamChat {
         UI::EmoteAtlas::Instance().ConfigureAnimations(config.animatedEmotes && config.emojiImages);
         if (!config.showPanel) UI::EmoteAtlas::Instance().RetainRows({});
 
-        panel->_screen->set_ScreenSize({config.panelWidth, config.panelHeight});
+        panel->_screen->set_ScreenSize(ScreenSizeFor(config.panelWidth, config.panelHeight));
+        panel->_panelArea->set_sizeDelta({config.panelWidth, config.panelHeight});
         if (panel->_background) {
             auto tint = UI::ColorFromHex(config.backgroundColor, UnityEngine::Color(0.0f, 0.0f, 0.0f, 1.0f));
             tint.a = std::clamp(config.backgroundOpacity, 0.0f, 1.0f);

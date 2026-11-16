@@ -14,6 +14,13 @@
 // rows filling the feed area, scrolled one request at a time by the arrows
 // on a strip outside the panel's right edge (shown only when the queue
 // overflows), with a bar marking where the view is.
+namespace StandaloneStreamChat::RequestListLayout {
+    /// The scroll strip's width and its gap from the panel's right edge, in
+    /// panel units. The chat panel keeps this much canvas past that edge.
+    inline constexpr float ScrollStripWidth = 10.0f;
+    inline constexpr float ScrollStripGap = 3.0f;
+}
+
 DECLARE_CLASS_CODEGEN(StandaloneStreamChat, RequestList, UnityEngine::MonoBehaviour) {
     DECLARE_INSTANCE_FIELD(UnityEngine::RectTransform*, _rect);
     DECLARE_INSTANCE_FIELD(UnityEngine::RectTransform*, _rows);  // RequestRows, top to bottom
@@ -45,8 +52,9 @@ DECLARE_CLASS_CODEGEN(StandaloneStreamChat, RequestList, UnityEngine::MonoBehavi
     DECLARE_INSTANCE_METHOD(void, OnDisable);
 
    public:
-    /// Fills `content` (the feed's clip area); the scroll strip goes on `screen`.
-    static RequestList* Create(UnityEngine::RectTransform* content, UnityEngine::RectTransform* screen, HMUI::ImageView* backdrop);
+    /// Fills `content` (the feed's clip area); the scroll strip goes just
+    /// outside the right edge of `panel`.
+    static RequestList* Create(UnityEngine::RectTransform* content, UnityEngine::RectTransform* panel, HMUI::ImageView* backdrop);
     /// Re-reads font, size and backdrop settings, copying the panel backdrop's
     /// sprite (corner rounding). `textMaterial` matches the curve.
     void ApplyConfig(UnityEngine::Material* textMaterial);

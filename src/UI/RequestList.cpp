@@ -36,8 +36,8 @@ namespace {
 
     // In panel units.
     constexpr float RowSpacing = 0.8f;
-    constexpr float SidecarWidth = 10.0f;
-    constexpr float SidecarGap = 3.0f;
+    constexpr float SidecarWidth = RequestListLayout::ScrollStripWidth;
+    constexpr float SidecarGap = RequestListLayout::ScrollStripGap;
     constexpr float SidecarButtonHeight = 7.0f;
     constexpr float SidecarPadding = 0.6f;
     constexpr float TrackInset = 3.0f;
@@ -105,7 +105,7 @@ namespace {
 }
 
 namespace StandaloneStreamChat {
-    RequestList* RequestList::Create(UnityEngine::RectTransform* content, UnityEngine::RectTransform* screen, HMUI::ImageView* backdrop) {
+    RequestList* RequestList::Create(UnityEngine::RectTransform* content, UnityEngine::RectTransform* panel, HMUI::ImageView* backdrop) {
         auto rect = NewRect(content, "RequestsContent");
         Stretch(rect);
         // Inactive until the panel switches to Requests mode, and so that
@@ -149,7 +149,7 @@ namespace StandaloneStreamChat {
         list->_onResults = false;
 
         // The scroll strip, centered on the panel just outside its right edge.
-        auto strip = NewRect(screen, "RequestScrollStrip");
+        auto strip = NewRect(panel, "RequestScrollStrip");
         strip->set_anchorMin({1.0f, 0.5f});
         strip->set_anchorMax({1.0f, 0.5f});
         strip->set_pivot({0.0f, 0.5f});
