@@ -1,6 +1,7 @@
 #include "Requests/SongRequestManager.hpp"
 #include "Requests/BeatSaver.hpp"
 #include "Requests/BsrCommand.hpp"
+#include "Requests/RequestPermission.hpp"
 #include "Chat/ChatManager.hpp"
 #include "Chat/Json.hpp"
 #include "Chat/MessageHistory.hpp"
@@ -98,14 +99,7 @@ namespace StandaloneStreamChat::Requests {
         constexpr std::string_view RetryFreshCopy = "installed copy didn't load; Accept downloads it again";
 
         bool Allowed(ChatMessage const& message) {
-            switch (GetConfig().whoCanRequest) {
-                case 2:
-                    return message.isBroadcaster;
-                case 1:
-                    return message.isBroadcaster || message.isModerator;
-                default:
-                    return true;
-            }
+            return MayRequest(GetConfig().whoCanRequest, message.isBroadcaster, message.isModerator);
         }
 
         // "<key> (<song> - <mapper>)", the folder name SongDownloader uses, with

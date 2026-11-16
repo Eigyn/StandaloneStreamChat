@@ -34,6 +34,7 @@
 #include "Net/SilenceWatchdog.hpp"
 #include "Net/TlsConnection.hpp"
 #include "Net/WebSocket.hpp"
+#include "Requests/RequestPermission.hpp"
 #include "Updates/UpdateCheck.hpp"
 #include "logging.hpp"
 #include "Downloader-under-test.hpp"
@@ -448,6 +449,17 @@ void EmoteInputBounds() {
     Check(!failed, "emote ranges and ids from the network stay in bounds");
     std::cout << "PASS emote ranges and Kick emote ids are validated\n";
 }
+// A WhoCanRequest typo must not open requests to everyone.
+void RequestPermissions() {
+    using namespace Requests;
+    for (int who : {0, 1, 2, 3, -1, 99}) {
+        bool viewer = MayRequest(who, false, false), moderator = MayRequest(who, false, true), broadcaster = MayRequest(who, true, false);
+        bool expected = who == 0 ? viewer && moderator && broadcaster : who == 1 ? !viewer && moderator && broadcaster : !viewer && !moderator && broadcaster;
+        Check(expected, "WhoCanRequest 0/1/2 as documented; anything else is broadcaster only");
+    }
+    Check(IsWhoCanRequest(0) && IsWhoCanRequest(2) && !IsWhoCanRequest(3) && !IsWhoCanRequest(-1), "config values outside 0-2 are rejected");
+    std::cout << "PASS request permissions fail closed\n";
+}
 // A long outage posts one problem line, not one per retry.
 struct StatusProbe : Chat::ChatService {
     explicit StatusProbe(StatusHandler onStatus) : ChatService([](ChatMessage) {}, std::move(onStatus)) {}
@@ -505,7 +517,7 @@ int main(int argc, char** argv) {
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }
-    EmoteInputBounds(); StatusLines(); RichTextEscape(); Watchdog(); UpdateNotice();
+    EmoteInputBounds(); RequestPermissions(); StatusLines(); RichTextEscape(); Watchdog(); UpdateNotice();
     Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure(); OversizedImages();
     std::cout << "All chat native tests passed; external network traffic: none.\n";
 }

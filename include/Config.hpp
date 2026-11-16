@@ -84,7 +84,8 @@ namespace StandaloneStreamChat {
 
         // Song requests: viewers type "!bsr <key>".
         Shared<bool> enableSongRequests = true;
-        // 0 = everyone, 1 = moderators + broadcaster, 2 = broadcaster only.
+        // 0 = everyone, 1 = moderators + broadcaster, 2 = broadcaster only
+        // (Requests::WhoCanRequest); anything else is read as 2.
         Shared<int> whoCanRequest = 0;
         // Between one viewer's requests; the broadcaster and mods are exempt.
         Shared<int> perUserCooldownSeconds = 30;

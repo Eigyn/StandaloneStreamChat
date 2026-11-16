@@ -1,6 +1,7 @@
 #include "Compat.hpp"
 
 #include "Config.hpp"
+#include "Requests/RequestPermission.hpp"
 #include "logging.hpp"
 
 #include "scotland2/shared/modloader.h"
@@ -169,6 +170,10 @@ namespace StandaloneStreamChat {
         Read(doc, "RotationY", config.rotationY);
         Read(doc, "EnableSongRequests", config.enableSongRequests);
         Read(doc, "WhoCanRequest", config.whoCanRequest);
+        if (!Requests::IsWhoCanRequest(config.whoCanRequest)) {
+            WARNING("WhoCanRequest {} is not 0, 1 or 2; only the broadcaster can request", config.whoCanRequest.Get());
+            config.whoCanRequest = Requests::BroadcasterOnly;
+        }
         Read(doc, "PerUserCooldownSeconds", config.perUserCooldownSeconds);
         Read(doc, "AllowDuplicates", config.allowDuplicates);
         Read(doc, "MaxRequestsPerUser", config.maxRequestsPerUser);
