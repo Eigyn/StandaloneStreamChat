@@ -11,7 +11,10 @@
 namespace StandaloneStreamChat::Chat {
     class ThirdPartyEmotes {
        public:
-        struct Emote { std::string key, url, animatedUrl; };
+        struct Emote {
+            std::string key, url, animatedUrl;
+            bool operator==(Emote const&) const = default;
+        };
         using EmoteMap = std::unordered_map<std::string, Emote>;
         using BadgeMap = std::unordered_map<std::string, std::string>; // set/version -> image
         static ThirdPartyEmotes& Instance();
@@ -19,6 +22,9 @@ namespace StandaloneStreamChat::Chat {
         void EnsureLoaded(std::string const& login, bool emotesEnabled, std::string const& twitchId = {}, bool badgesEnabled = true);
         std::shared_ptr<EmoteMap const> Snapshot() const;
         std::shared_ptr<BadgeMap const> Badges() const;
+        /// Changes whenever the emote or badge set changes, so the panel
+        /// knows to redraw its rows; a refresh that loads the same sets
+        /// leaves it alone.
         int Version() const { return _version; }
 
        private:
@@ -35,6 +41,9 @@ namespace StandaloneStreamChat::Chat {
         ThirdPartyEmotes() = default;
         bool Load(Cache& cache, bool emotesEnabled, bool badgesEnabled);
         static std::shared_ptr<EmoteMap const> Merge(Cache const& cache);
+        /// Publishes these sets, bumping the version only if they differ
+        /// from the current ones. Call with `_lock` held.
+        void Publish(std::shared_ptr<EmoteMap const> emotes, std::shared_ptr<BadgeMap const> badges);
         mutable std::mutex _lock;
         Cache _cache;
         std::shared_ptr<EmoteMap const> _emotes = std::make_shared<EmoteMap const>();

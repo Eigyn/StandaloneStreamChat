@@ -95,6 +95,14 @@ namespace StandaloneStreamChat::Chat {
         return merged;
     }
 
+    void ThirdPartyEmotes::Publish(std::shared_ptr<EmoteMap const> emotes, std::shared_ptr<BadgeMap const> badges) {
+        if (*emotes == *_emotes && *badges == *_badges)
+            return;  // keep the current maps, so the shared_ptrs stay the same too
+        _emotes = std::move(emotes);
+        _badges = std::move(badges);
+        ++_version;
+    }
+
     void ThirdPartyEmotes::EnsureLoaded(std::string const& channel, bool emotesEnabled, std::string const& twitchId, bool badgesEnabled) {
         auto login = Login(channel);
         auto wanted = login + (emotesEnabled ? "|e1" : "|e0") + (badgesEnabled ? "|b1|" : "|b0|") + twitchId;
@@ -113,9 +121,8 @@ namespace StandaloneStreamChat::Chat {
                 if (!twitchId.empty()) _cache.twitchId = twitchId;
                 if (!emotesEnabled) for (auto& source : _cache.sources) source = Source{};
                 if (!badgesEnabled) { _cache.badges = std::make_shared<BadgeMap const>(); _cache.resourcesLoaded = false; }
-                _emotes = emotesEnabled ? Merge(_cache) : std::make_shared<EmoteMap const>();
-                _badges = badgesEnabled ? _cache.badges : std::make_shared<BadgeMap const>();
-                ++_version;
+                Publish(emotesEnabled ? Merge(_cache) : std::make_shared<EmoteMap const>(),
+                        badgesEnabled ? _cache.badges : std::make_shared<BadgeMap const>());
             }
             if (_loading || (!emotesEnabled && !badgesEnabled) || now < _nextAttempt) return;
             // A successful set is periodically refreshed; keep its data during retries.
@@ -134,12 +141,13 @@ namespace StandaloneStreamChat::Chat {
             _loading = false;
             if (generation != _generation) return;
             _cache = std::move(cache);
-            _emotes = emotesEnabled ? Merge(_cache) : std::make_shared<EmoteMap const>();
-            _badges = badgesEnabled ? _cache.badges : std::make_shared<BadgeMap const>();
+            // The periodic refresh usually brings back the same sets; only a
+            // real change is worth redrawing every row for.
+            Publish(emotesEnabled ? Merge(_cache) : std::make_shared<EmoteMap const>(),
+                    badgesEnabled ? _cache.badges : std::make_shared<BadgeMap const>());
             _failures = complete ? 0 : std::min(_failures + 1, 7);
             auto delay = complete ? std::chrono::seconds(600) : std::chrono::seconds(std::min(300, 5 << (_failures - 1)));
             _nextAttempt = std::chrono::steady_clock::now() + delay;
-            ++_version;
             INFO("Chat resources: {} emotes, {} badges; {}", _emotes->size(), _badges->size(), complete ? "loaded" : "partial, retry scheduled");
         });
     }

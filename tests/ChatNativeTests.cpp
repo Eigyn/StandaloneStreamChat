@@ -201,15 +201,28 @@ void Resources() {
     Check(Fixture::httpCalls == calls, "backoff prevents a retry per frame");
     Fixture::ffzStatus = 200;
     { std::lock_guard lock(loader._lock); loader._nextAttempt = {}; }
+    auto version = loader.Version();
     loader.EnsureLoaded("fixture", true);
     Fixture::Wait(idle);
     Check(loader.Snapshot()->contains("ChannelFfz") && Fixture::httpCalls == calls + 1, "retry recovers only failed provider");
+    Check(loader.Version() != version, "a changed emote set bumps the version");
+    // The scheduled refresh reloads every provider; the same sets must not redraw every row.
+    { std::lock_guard lock(loader._lock); loader._nextAttempt = {}; }
+    version = loader.Version();
+    auto snapshot = loader.Snapshot();
+    auto badges = loader.Badges();
+    calls = Fixture::httpCalls.load();
+    loader.EnsureLoaded("fixture", true);
+    Fixture::Wait(idle);
+    Check(Fixture::httpCalls > calls + 1 && loader.Version() == version && loader.Snapshot() == snapshot && loader.Badges() == badges,
+          "an unchanged full refresh keeps the version and the published sets");
     Fixture::ffzStatus = 503;
     { std::lock_guard lock(loader._lock); loader._nextAttempt = {}; }
     loader.EnsureLoaded("fixture", true);
     Fixture::Wait(idle);
     Check(loader.Snapshot()->contains("ChannelFfz"), "refresh failure preserves previously loaded emotes");
-    std::cout << "PASS independent provider lookup, retry/backoff, retained resources and channel badges\n";
+    Check(loader.Version() == version, "a failed refresh that keeps the old sets keeps the version");
+    std::cout << "PASS independent provider lookup, retry/backoff, retained resources, channel badges and change-only versions\n";
 }
 struct Gif {
     std::vector<uint8_t> data;
