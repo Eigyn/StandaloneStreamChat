@@ -38,6 +38,7 @@ namespace StandaloneStreamChat::UI {
         <slider-setting text='Counter' pref-width='64' value='viewerCountSize' min='1.5' max='6' increment='0.1' apply-on-change='true' hover-hint='Size of the viewer-count numbers and platform icons at the top of the chat panel.'/>
         <slider-setting text='Opacity' pref-width='64' value='backgroundOpacity' min='0' max='1' increment='0.05' apply-on-change='true' hover-hint='Window backdrop transparency. 0 = invisible backdrop, text stays.'/>
         <slider-setting text='Highlight' pref-width='64' value='highlightOpacity' min='0.1' max='1' increment='0.05' apply-on-change='true' hover-hint='Darkness of the backdrop behind each message (with Highlight Messages on).'/>
+        <button text='Reset Default Appearance' on-click='resetAppearance' pref-width='64' pref-height='8' hover-hint='Put every setting on this tab back to its default. The panel position is kept.'/>
       </vertical>
     </horizontal>
   </tab>

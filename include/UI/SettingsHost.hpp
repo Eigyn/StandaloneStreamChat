@@ -28,6 +28,8 @@ DECLARE_CLASS_CODEGEN(StandaloneStreamChat, SettingsHost, UnityEngine::MonoBehav
     DECLARE_BSML_PROPERTY(float, viewerCountSize);
     DECLARE_BSML_PROPERTY(float, backgroundOpacity);
     DECLARE_BSML_PROPERTY(float, highlightOpacity);
+    /// Every Appearance value back to its default, controls included.
+    DECLARE_INSTANCE_METHOD(void, resetAppearance);
 
     // Requests
     DECLARE_BSML_PROPERTY(bool, enableSongRequests);

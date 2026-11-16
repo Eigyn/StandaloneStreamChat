@@ -6,6 +6,10 @@
 #include "Config.hpp"
 
 #include "bsml/shared/BSML/MainThreadScheduler.hpp"
+#include "bsml/shared/BSML/Components/Settings/ColorSetting.hpp"
+#include "bsml/shared/BSML/Components/Settings/SliderSetting.hpp"
+
+#include "UnityEngine/GameObject.hpp"
 
 #include <algorithm>
 #include <array>
@@ -106,6 +110,28 @@ namespace StandaloneStreamChat {
     void SettingsHost::set_backgroundOpacity(float value) { SetAppearance(&Config::backgroundOpacity, value); }
     float SettingsHost::get_highlightOpacity() { return GetConfig().highlightOpacity; }
     void SettingsHost::set_highlightOpacity(float value) { SetAppearance(&Config::highlightOpacity, value); }
+
+    // The values a fresh config starts with, for the Appearance tab's settings only.
+    void SettingsHost::resetAppearance() {
+        Config const defaults{};
+        auto& config = GetConfig();
+        config.curveAmount = defaults.curveAmount;
+        config.cornerRadius = defaults.cornerRadius;
+        config.panelWidth = defaults.panelWidth;
+        config.panelHeight = defaults.panelHeight;
+        config.backgroundColor = defaults.backgroundColor;
+        config.fontSize = defaults.fontSize;
+        config.viewerCountSize = defaults.viewerCountSize;
+        config.backgroundOpacity = defaults.backgroundOpacity;
+        config.highlightOpacity = defaults.highlightOpacity;
+        SaveConfig();
+        ChatPanel::ApplyConfig();
+        // Each control shows its own copy of its value; have them all read the config again.
+        for (auto slider : get_gameObject()->GetComponentsInChildren<BSML::SliderSetting*>(true))
+            slider->ReceiveValue();
+        for (auto color : get_gameObject()->GetComponentsInChildren<BSML::ColorSetting*>(true))
+            color->ReceiveValue();
+    }
 
     bool SettingsHost::get_enableSongRequests() { return GetConfig().enableSongRequests; }
     void SettingsHost::set_enableSongRequests(bool value) {
