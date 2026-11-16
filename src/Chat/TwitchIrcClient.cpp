@@ -116,7 +116,7 @@ namespace StandaloneStreamChat::Chat {
                 // A connection that had joined is a fresh outage, not more of an old one.
                 if (_joined)
                     delaySeconds = 1;
-                _onStatus(fmt::format("Twitch: connection lost ({}), retrying in {}s", ex.what(), delaySeconds));
+                Report(StatusKind::Problem, fmt::format("Twitch: connection lost ({}), retrying in {}s", ex.what(), delaySeconds));
             }
 
             SleepFor(std::chrono::seconds(delaySeconds));
@@ -125,7 +125,7 @@ namespace StandaloneStreamChat::Chat {
     }
 
     void TwitchIrcClient::ConnectAndRead() {
-        _onStatus(fmt::format("Twitch: connecting to #{}...", _channel));
+        Report(StatusKind::Progress, fmt::format("Twitch: connecting to #{}...", _channel));
 
         Net::TlsConnection connection(_stopping);
         connection.Connect(Host, Port);
@@ -176,15 +176,15 @@ namespace StandaloneStreamChat::Chat {
                     connection.SendAll("JOIN #" + _channel + "\r\n");
                 } else if (command == "366") {  // end of names: join complete
                     _joined = true;
-                    _onStatus(fmt::format("Twitch: joined #{}", _channel));
+                    Report(StatusKind::Connected, fmt::format("Twitch: joined #{}", _channel));
                 } else if (command == "PRIVMSG") {
                     HandlePrivmsg(*message);
                 } else if (command == "ROOMSTATE" || command == "CLEARMSG" || command == "CLEARCHAT" || command == "USERNOTICE") {
                     HandleControl(*message);
                 } else if (command == "NOTICE") {
-                    _onStatus("Twitch: " + std::string(message->TrailingOrEmpty()));
+                    Report(StatusKind::Progress, "Twitch: " + std::string(message->TrailingOrEmpty()));
                 } else if (command == "RECONNECT") {
-                    _onStatus("Twitch: server requested reconnect");
+                    Report(StatusKind::Progress, "Twitch: server requested reconnect");
                     return;
                 }
             }

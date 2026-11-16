@@ -84,9 +84,9 @@ namespace StandaloneStreamChat::Chat {
         ChatService::MessageHandler onMessage = [this, slot, generation](ChatMessage message) {
             AddFromService(std::move(message), slot, generation);
         };
-        ChatService::StatusHandler onStatus = [this, slot, generation](std::string status) {
-            INFO("{}", status);
-            if (!GetConfig().showSystemMessages)
+        ChatService::StatusHandler onStatus = [this, slot, generation](std::string status, bool showInFeed) {
+            INFO("{}{}", status, showInFeed ? "" : " (not shown: same outage)");
+            if (!showInFeed || !GetConfig().showSystemMessages)
                 return;
             ChatMessage message;
             message.platform = ChatPlatform::System;

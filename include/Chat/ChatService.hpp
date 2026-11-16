@@ -23,7 +23,9 @@ namespace StandaloneStreamChat::Chat {
     class ChatService {
        public:
         using MessageHandler = std::function<void(ChatMessage)>;
-        using StatusHandler = std::function<void(std::string)>;
+        /// Every status line, to be logged; `showInFeed` is false for a
+        /// repeat during an outage (see Report).
+        using StatusHandler = std::function<void(std::string text, bool showInFeed)>;
 
         virtual ~ChatService();
         ChatService(ChatService const&) = delete;
@@ -54,6 +56,18 @@ namespace StandaloneStreamChat::Chat {
         /// Sleeps in short slices; returns false if asked to stop meanwhile.
         bool SleepFor(std::chrono::milliseconds duration) const;
 
+        /// What a status line says about the connection.
+        enum class StatusKind {
+            Progress,   ///< connecting, looking up, reconnecting on request
+            Connected,  ///< the platform answered: joined, or said the channel is offline
+            Problem,    ///< an attempt failed
+        };
+        /// Sends a status line on. Retries repeat until a connection works, so
+        /// only the first Problem of an outage reaches the feed; later Progress
+        /// and Problem lines are only logged until the next Connected one.
+        /// Service thread only.
+        void Report(StatusKind kind, std::string text);
+
         std::atomic<bool> _stopping{false};
         std::atomic<int> _viewers{-1};
         MessageHandler _onMessage;
@@ -62,6 +76,7 @@ namespace StandaloneStreamChat::Chat {
        private:
         void RunViewers();
 
+        bool _outage = false;  // a Problem was reported since the last Connected
         std::mutex _viewerLock;
         uint64_t _viewerGeneration = 0;
         std::thread _thread;

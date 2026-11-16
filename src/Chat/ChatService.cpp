@@ -23,6 +23,17 @@ namespace StandaloneStreamChat::Chat {
 
     void ChatService::RequestStop() { _stopping = true; }
 
+    void ChatService::Report(StatusKind kind, std::string text) {
+        bool show = true;
+        if (kind == StatusKind::Connected)
+            _outage = false;
+        else if (_outage)
+            show = false;
+        else if (kind == StatusKind::Problem)
+            _outage = true;
+        _onStatus(std::move(text), show);
+    }
+
     void ChatService::Stop() {
         _stopping = true;
         if (_thread.joinable())

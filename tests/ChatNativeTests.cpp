@@ -118,7 +118,7 @@ void Moderation() {
             if (message.event == ChatEvent::ChannelIdentity) identity = message.channelId;
             else if (message.event == ChatEvent::Message) history.push_back(std::move(message));
             else ApplyModeration(history, message);
-        }, [](std::string) {});
+        }, [](std::string, bool) {});
         Fixture::wire = "@room-id=1234 :tmi.twitch.tv ROOMSTATE #fixture\r\n@id=one;user-id=42;display-name=Alice;room-id=1234 :alice!a@a PRIVMSG #fixture :hello\r\n" + std::string(command);
         Fixture::received = false; client.ConnectAndRead();
         bool single = std::string_view(command).find("CLEARMSG") != std::string_view::npos;
@@ -126,7 +126,7 @@ void Moderation() {
         if (single) Check(history.back().isDeleted && history.back().revision == 1 && history.back().text == "[message deleted]", "single deletion retains marker and invalidates its row");
     }
     std::vector<ChatMessage> messages;
-    TwitchIrcClient client("fixture", [&](ChatMessage m) { messages.push_back(std::move(m)); }, [](std::string) {});
+    TwitchIrcClient client("fixture", [&](ChatMessage m) { messages.push_back(std::move(m)); }, [](std::string, bool) {});
     Fixture::wire = "@id=rich;user-id=42;badges=subscriber/12,vip/1;bits=100;msg-id=highlighted-message;display-name=Alice;emotes=25:2-6 :alice!a@a PRIVMSG #fixture :\x01" "ACTION 😀 Kappa @FiXtUrE\x01\r\n";
     Fixture::received = false; client.ConnectAndRead();
     Check(messages.size() == 1, "rich message parsed");
@@ -143,7 +143,7 @@ void Moderation() {
 }
 void OtherPlatforms() {
     std::atomic<bool> stop{false}; Net::HttpClient http(stop);
-    YouTubeChatClient youtube("@fixture", std::make_shared<RecentIds>(20), [](ChatMessage) {}, [](std::string) {});
+    YouTubeChatClient youtube("@fixture", std::make_shared<RecentIds>(20), [](ChatMessage) {}, [](std::string, bool) {});
     auto result = youtube.Poll(http);
     Check(result.valid && result.messages.size() == 3, "YouTube ordered message/delete/user-purge actions");
     Check(result.messages[0].messageId == "yt1" && result.messages[0].userId == "u1" && result.messages[0].badges[0].imageUrl == "https://fixture/member.png", "YouTube identity and member badge");
@@ -152,14 +152,14 @@ void OtherPlatforms() {
     Fixture::youTubeBody = R"({"continuationContents":{"liveChatContinuation":{"continuations":[{"invalidationContinuationData":{"continuation":"next","timeoutMs":1000}}],"actions":[)"
                            R"({"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"old","timestampUsec":"1000","authorName":{"simpleText":"Bob"},"message":{"runs":[{"text":"before"}]}}}}},)"
                            R"({"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"new","timestampUsec":"9000","authorName":{"simpleText":"Bob"},"message":{"runs":[{"text":"after"}]}}}}}]}}})";
-    YouTubeChatClient late("@fixture", std::make_shared<RecentIds>(20), [](ChatMessage) {}, [](std::string) {});
+    YouTubeChatClient late("@fixture", std::make_shared<RecentIds>(20), [](ChatMessage) {}, [](std::string, bool) {});
     late._startedUsec = 5000;
     auto backlog = late.Poll(http);
     Check(backlog.valid && backlog.messages.size() == 1 && backlog.messages[0].messageId == "new", "YouTube skips chat sent before it started");
     Check(late.Poll(http).messages.empty(), "skipped YouTube backlog stays seen");
     Fixture::youTubeBody.clear();
     std::deque<ChatMessage> history;
-    KickChatClient kick("fixture", [&](ChatMessage m) { if (m.event == ChatEvent::Message) history.push_back(std::move(m)); else ApplyModeration(history, m); }, [](std::string) {});
+    KickChatClient kick("fixture", [&](ChatMessage m) { if (m.event == ChatEvent::Message) history.push_back(std::move(m)); else ApplyModeration(history, m); }, [](std::string, bool) {});
     kick._chatroomId = "1234";
     rapidjson::Document message;
     message.Parse(R"({"id":"k1","content":"hello @fixture [emote:1:Hi]","sender":{"id":42,"username":"Alice","identity":{"badges_v2":[{"badge_type":"subscriber","name":"Subscriber","image_url":"https://fixture/kick.png","selected":true},{"badge_type":"moderator","selected":false}]}}})");
@@ -396,6 +396,34 @@ void Watchdog() {
           "a missed server ping plus grace means the connection is dead");
     std::cout << "PASS silent connections are probed and then dropped\n";
 }
+// A long outage posts one problem line, not one per retry.
+struct StatusProbe : Chat::ChatService {
+    explicit StatusProbe(StatusHandler onStatus) : ChatService([](ChatMessage) {}, std::move(onStatus)) {}
+    ~StatusProbe() override { Stop(); }
+    void Run() override {}
+    std::optional<int> FetchViewers(Net::HttpClient&) override { return std::nullopt; }
+    using ChatService::Report;
+    using ChatService::StatusKind;
+};
+void StatusLines() {
+    std::vector<std::string> feed, log;
+    StatusProbe probe([&](std::string text, bool show) { log.push_back(text); if (show) feed.push_back(text); });
+    using Kind = StatusProbe::StatusKind;
+    probe.Report(Kind::Progress, "connecting");
+    probe.Report(Kind::Connected, "joined");
+    probe.Report(Kind::Problem, "lost 1");
+    for (int i = 2; i <= 30; i++) {
+        probe.Report(Kind::Progress, "connecting");
+        probe.Report(Kind::Problem, "lost " + std::to_string(i));
+    }
+    probe.Report(Kind::Progress, "connecting");
+    probe.Report(Kind::Connected, "joined again");
+    probe.Report(Kind::Problem, "lost after recovery");
+    Check(log.size() == 64, "every status line is still logged");
+    Check(feed == std::vector<std::string>{"connecting", "joined", "lost 1", "joined again", "lost after recovery"},
+          "an outage shows its first problem and the recovery, not every retry");
+    std::cout << "PASS status lines: one per outage in the feed, all in the log\n";
+}
 void UpdateNotice() {
     using namespace Updates;
     auto newer = [](std::string_view latest, std::string_view current) { return IsNewer(*ParseVersion(latest), *ParseVersion(current)); };
@@ -425,7 +453,7 @@ int main(int argc, char** argv) {
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }
-    RichTextEscape(); Watchdog(); UpdateNotice();
+    StatusLines(); RichTextEscape(); Watchdog(); UpdateNotice();
     Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure(); OversizedImages();
     std::cout << "All chat native tests passed; external network traffic: none.\n";
 }

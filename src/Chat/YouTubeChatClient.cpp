@@ -279,7 +279,7 @@ namespace StandaloneStreamChat::Chat {
                     _viewers = -1;
                     // Only say so once per offline stretch.
                     if (!reportedOffline)
-                        _onStatus(fmt::format("YouTube: {} is not live - will connect when it is", _channel));
+                        Report(StatusKind::Connected, fmt::format("YouTube: {} is not live - will connect when it is", _channel));
                     reportedOffline = true;
                     SleepFor(seconds(OfflineDelays[std::min(offlineChecks++, 3)]));
                     continue;
@@ -289,12 +289,12 @@ namespace StandaloneStreamChat::Chat {
 
                 if (!Bootstrap(http, videoId)) {
                     int delay = BootstrapDelays[std::min(bootstrapFailures++, 3)];
-                    _onStatus(fmt::format("YouTube: live chat unavailable - retrying in {}s", delay));
+                    Report(StatusKind::Problem, fmt::format("YouTube: live chat unavailable - retrying in {}s", delay));
                     SleepFor(seconds(delay));
                     continue;
                 }
                 bootstrapFailures = 0;
-                _onStatus(fmt::format("YouTube: connected to live chat ({})", videoId));
+                Report(StatusKind::Connected, fmt::format("YouTube: connected to live chat ({})", videoId));
                 SetViewerSession({videoId, _apiKey, _clientVersion});
                 ++session;
 
@@ -315,7 +315,7 @@ namespace StandaloneStreamChat::Chat {
                     }
                     if (!result.valid) {
                         SetViewerSession({});
-                        _onStatus("YouTube: chat ended or reset - reconnecting");
+                        Report(StatusKind::Problem, "YouTube: chat ended or reset - reconnecting");
                         SleepFor(seconds(errorDelaySeconds));
                         errorDelaySeconds = std::min(errorDelaySeconds * 2, 120);
                         break;
@@ -328,7 +328,7 @@ namespace StandaloneStreamChat::Chat {
                             auto current = liveProbe.get();
                             if (probeSession == session && silent && !current.empty() && current != videoId) {
                                 INFO("YouTube: /live now points at {} instead of {}", current, videoId);
-                                _onStatus("YouTube: found the channel's current stream - reconnecting");
+                                Report(StatusKind::Progress, "YouTube: found the channel's current stream - reconnecting");
                                 break;
                             }
                         } catch (std::exception const& ex) {
@@ -357,7 +357,7 @@ namespace StandaloneStreamChat::Chat {
                 if (_stopping)
                     break;
                 SetViewerSession({});
-                _onStatus(fmt::format("YouTube: error ({}), retrying in {}s", ex.what(), errorDelaySeconds));
+                Report(StatusKind::Problem, fmt::format("YouTube: error ({}), retrying in {}s", ex.what(), errorDelaySeconds));
                 SleepFor(std::chrono::seconds(errorDelaySeconds));
                 errorDelaySeconds = std::min(errorDelaySeconds * 2, 120);
             }

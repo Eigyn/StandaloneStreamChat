@@ -210,10 +210,10 @@ namespace StandaloneStreamChat::Chat {
             try {
                 Net::HttpClient http(_stopping);
                 if (!info) {
-                    _onStatus(fmt::format("Kick: looking up {}...", _channel));
+                    Report(StatusKind::Progress, fmt::format("Kick: looking up {}...", _channel));
                     info = Resolve(http);
                     if (!info) {
-                        _onStatus(fmt::format("Kick: channel {} not found - retrying in 60s", _channel));
+                        Report(StatusKind::Problem, fmt::format("Kick: channel {} not found - retrying in 60s", _channel));
                         SleepFor(std::chrono::seconds(60));
                         continue;
                     }
@@ -222,14 +222,14 @@ namespace StandaloneStreamChat::Chat {
                 if (_stopping)
                     break;
                 delaySeconds = 2;
-                _onStatus(fmt::format("Kick: disconnected - reconnecting in {}s", delaySeconds));
+                Report(StatusKind::Problem, fmt::format("Kick: disconnected - reconnecting in {}s", delaySeconds));
             } catch (std::exception const& ex) {
                 if (_stopping)
                     break;
                 // A connection that had subscribed is a fresh outage, not more of an old one.
                 if (_subscribed)
                     delaySeconds = 2;
-                _onStatus(fmt::format("Kick: connection lost ({}), retrying in {}s", ex.what(), delaySeconds));
+                Report(StatusKind::Problem, fmt::format("Kick: connection lost ({}), retrying in {}s", ex.what(), delaySeconds));
             }
 
             SleepFor(std::chrono::seconds(delaySeconds));
@@ -305,7 +305,7 @@ namespace StandaloneStreamChat::Chat {
         auto url = RealtimeUrl(http, info, clientId);
         auto token = GuestToken(http, clientId);
 
-        _onStatus(fmt::format("Kick: connecting to {}...", info.displayName));
+        Report(StatusKind::Progress, fmt::format("Kick: connecting to {}...", info.displayName));
         Net::WebSocket socket(_stopping);
         socket.Connect(url, {"Origin: https://kick.com", std::string("User-Agent: ") + Net::BrowserUserAgent});
 
@@ -371,7 +371,7 @@ namespace StandaloneStreamChat::Chat {
                     scheduleRefresh(refresh);
                 } else if (Json::Get(&doc, "subscribe") && Json::Scalar(Json::Get(&doc, "id")) == std::to_string(subscribeId)) {
                     _subscribed = true;
-                    _onStatus(fmt::format("Kick: connected to {} chat", info.displayName));
+                    Report(StatusKind::Connected, fmt::format("Kick: connected to {} chat", info.displayName));
                 } else if (auto push = Json::Get(&doc, "push")) {
                     if (Json::Get(push, "disconnect"))
                         return;
