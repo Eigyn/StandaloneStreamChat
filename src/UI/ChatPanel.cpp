@@ -601,6 +601,11 @@ namespace StandaloneStreamChat {
         auto transform = _screen->get_transform();
         transform->SetPositionAndRotation(UnityEngine::Vector3::Lerp(transform->get_position(), targetPosition, 10.0f * dt),
                                           UnityEngine::Quaternion::Lerp(transform->get_rotation(), targetRotation, 5.0f * dt));
+        // Only pitch and yaw are saved, so the panel follows a twist of the
+        // controller without rolling: what's shown is what comes back next launch.
+        auto euler = transform->get_eulerAngles();
+        if (euler.z != 0.0f)
+            transform->set_eulerAngles({euler.x, euler.y, 0.0f});
         ApplyMoveConstraint();
     }
 
