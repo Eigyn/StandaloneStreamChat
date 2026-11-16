@@ -396,6 +396,58 @@ void Watchdog() {
           "a missed server ping plus grace means the connection is dead");
     std::cout << "PASS silent connections are probed and then dropped\n";
 }
+// Server- and viewer-supplied emote data that must not be trusted: Twitch's
+// emote ranges and Kick's [emote:id:name] tokens.
+// Every check is reported before exiting, with what the client produced.
+void EmoteInputBounds() {
+    bool failed = false;
+    auto expect = [&](bool ok, std::string const& what) {
+        std::cout << (ok ? "  ok   " : "  FAIL ") << what << '\n';
+        failed |= !ok;
+    };
+    auto describe = [](ChatMessage const& m) {
+        std::string out = "text=\"" + m.text + "\" segments=" + std::to_string(m.segments.size());
+        for (auto const& s : m.segments) out += " [" + s.text + (s.IsEmote() ? " -> " + s.emoteUrl : "") + "]";
+        return out;
+    };
+    std::cout << "Twitch emote ranges:\n";
+    for (auto [tag, valid] : {std::pair{"25:0-4", true}, std::pair{"25:0-18446744073709551615", false},
+                              std::pair{"25:18446744073709551614-18446744073709551615", false}, std::pair{"25:3-1", false},
+                              std::pair{"25:0-8", false}, std::pair{"25:-1-4", false}}) {
+        std::vector<ChatMessage> messages;
+        TwitchIrcClient client("fixture", [&](ChatMessage m) { messages.push_back(std::move(m)); }, [](std::string, bool) {});
+        Fixture::wire = std::string("@id=e;display-name=A;emotes=") + tag + " :a!a@a PRIVMSG #fixture :Kappa hi\r\n";
+        Fixture::received = false;
+        std::string result;
+        try {
+            client.ConnectAndRead();
+            result = messages.empty() ? "no message" : describe(messages.front());
+        } catch (std::exception const& ex) {
+            result = std::string("threw ") + ex.what();
+        }
+        bool emote = !messages.empty() && messages.front().segments.size() == 2 && messages.front().segments[0].text == "Kappa";
+        bool none = !messages.empty() && messages.front().segments.empty();
+        expect(valid ? emote : none, std::string(tag) + ": " + result);
+    }
+    std::cout << "Kick emote tokens:\n";
+    std::vector<ChatMessage> kicked;
+    KickChatClient kick("fixture", [&](ChatMessage m) { kicked.push_back(std::move(m)); }, [](std::string, bool) {});
+    int id = 100;
+    for (auto [content, valid] : {std::pair{"[emote:12345:Ok]", true}, std::pair{"[emote:../../avatar?x=:Hi]", false},
+                                  std::pair{"[emote:1/../2:Hi]", false}, std::pair{"[emote::Hi]", false},
+                                  std::pair{"[emote:123456789012345678901234567890:Hi]", false}}) {
+        rapidjson::Document doc;
+        doc.Parse((R"({"id":"k)" + std::to_string(id++) + R"(","content":")" + content + R"(","sender":{"id":1,"username":"A"}})").c_str());
+        kicked.clear();
+        kick.HandleChatMessage(&doc);
+        auto const* m = kicked.empty() ? nullptr : &kicked.front();
+        bool emote = m && m->segments.size() == 1 && m->segments[0].IsEmote() && m->segments[0].emoteUrl == "https://files.kick.com/emotes/12345/fullsize";
+        bool literal = m && m->segments.empty() && m->text == content;
+        expect(valid ? emote : literal, std::string(content) + ": " + (m ? describe(*m) : "no message"));
+    }
+    Check(!failed, "emote ranges and ids from the network stay in bounds");
+    std::cout << "PASS emote ranges and Kick emote ids are validated\n";
+}
 // A long outage posts one problem line, not one per retry.
 struct StatusProbe : Chat::ChatService {
     explicit StatusProbe(StatusHandler onStatus) : ChatService([](ChatMessage) {}, std::move(onStatus)) {}
@@ -453,7 +505,7 @@ int main(int argc, char** argv) {
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }
-    StatusLines(); RichTextEscape(); Watchdog(); UpdateNotice();
+    EmoteInputBounds(); StatusLines(); RichTextEscape(); Watchdog(); UpdateNotice();
     Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure(); OversizedImages();
     std::cout << "All chat native tests passed; external network traffic: none.\n";
 }

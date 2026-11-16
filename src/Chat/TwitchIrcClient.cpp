@@ -8,8 +8,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <chrono>
 #include <cstdlib>
+#include <optional>
 #include <exception>
 #include <random>
 #include <stdexcept>
@@ -23,6 +25,21 @@ namespace StandaloneStreamChat::Chat {
         // ping it ourselves; no reply within 20 s means the path is gone.
         constexpr auto ProbeAfter = std::chrono::seconds(60);
         constexpr auto DeadAfter = std::chrono::seconds(80);
+
+        // A code point index from the emotes tag: plain decimal digits, as
+        // Twitch sends them. No sign, no spaces, nothing that wraps.
+        std::optional<size_t> RangeIndex(std::string_view field) {
+            size_t value = 0;
+            auto [end, error] = std::from_chars(field.data(), field.data() + field.size(), value);
+            if (field.empty() || error != std::errc() || end != field.data() + field.size())
+                return std::nullopt;
+            return value;
+        }
+
+        // Emote ids go into image URLs: numeric, or "emotesv2_" and hex.
+        bool ValidEmoteId(std::string_view id) {
+            return !id.empty() && id.size() <= 64 && std::all_of(id.begin(), id.end(), [](unsigned char c) { return std::isalnum(c) || c == '_'; });
+        }
 
         // The "emotes" tag ("25:0-4,12-16/1902:6-10") as segments. Its ranges
         // count Unicode code points, so map them onto the UTF-8 bytes first.
@@ -47,7 +64,7 @@ namespace StandaloneStreamChat::Chat {
                 auto part = tag.substr(0, tag.find('/'));
                 tag.remove_prefix(std::min(tag.size(), part.size() + 1));
                 auto colon = part.find(':');
-                if (colon == 0 || colon == std::string_view::npos)
+                if (colon == 0 || colon == std::string_view::npos || !ValidEmoteId(part.substr(0, colon)))
                     continue;
                 std::string id(part.substr(0, colon));
                 auto ranges = part.substr(colon + 1);
@@ -57,11 +74,13 @@ namespace StandaloneStreamChat::Chat {
                     auto dash = range.find('-');
                     if (dash == std::string_view::npos)
                         continue;
-                    size_t first = std::strtoul(std::string(range.substr(0, dash)).c_str(), nullptr, 10);
-                    size_t last = std::strtoul(std::string(range.substr(dash + 1)).c_str(), nullptr, 10);
-                    if (last < first || last + 1 >= offsets.size())
+                    auto first = RangeIndex(range.substr(0, dash));
+                    auto last = RangeIndex(range.substr(dash + 1));
+                    // `offsets` ends with one entry past the last code point,
+                    // so the last code point is offsets.size() - 2.
+                    if (!first || !last || *first > *last || *last >= offsets.size() - 1)
                         continue;
-                    spans.push_back({offsets[first], offsets[last + 1], id});
+                    spans.push_back({offsets[*first], offsets[*last + 1], id});
                 }
             }
             if (spans.empty())

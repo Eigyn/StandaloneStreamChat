@@ -79,6 +79,9 @@ namespace StandaloneStreamChat::Chat {
             return !value.empty() && std::all_of(value.begin(), value.end(), [](unsigned char c) { return std::isdigit(c); });
         }
 
+        // Kick emote ids are integers; 20 digits is past any 64-bit id.
+        bool IsEmoteId(std::string_view id) { return id.size() <= 20 && IsNumber(id); }
+
         std::string NewClientId() {
             // Random UUID v4, like the web client's crypto.randomUUID().
             std::mt19937 rng(std::random_device{}());
@@ -164,8 +167,10 @@ namespace StandaloneStreamChat::Chat {
                 if (text.compare(i, emote.size(), emote) == 0) {
                     auto close = text.find(']', i);
                     auto nameStart = text.find(':', i + emote.size());
-                    if (close != std::string::npos && nameStart != std::string::npos && nameStart < close) {
-                        auto id = text.substr(i + emote.size(), nameStart - i - emote.size());
+                    auto id = nameStart == std::string::npos ? std::string() : text.substr(i + emote.size(), nameStart - i - emote.size());
+                    // Viewers type these, and the id goes into the image URL: anything
+                    // but a plain Kick emote number stays as the literal text.
+                    if (close != std::string::npos && nameStart < close && IsEmoteId(id)) {
                         segments.push_back({text.substr(nameStart + 1, close - nameStart - 1), "kick:" + StableKey(id),
                                             "https://files.kick.com/emotes/" + id + "/fullsize", "https://files.kick.com/emotes/" + id + "/fullsize"});
                         i = close + 1;
