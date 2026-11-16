@@ -2,6 +2,7 @@
 #include "Chat/Json.hpp"
 #include "Chat/MessageMetadata.hpp"
 #include "Net/HttpClient.hpp"
+#include "Net/SilenceWatchdog.hpp"
 #include "Net/TlsConnection.hpp"
 #include "logging.hpp"
 
@@ -11,12 +12,17 @@
 #include <cstdlib>
 #include <exception>
 #include <random>
+#include <stdexcept>
 #include <vector>
 
 namespace StandaloneStreamChat::Chat {
     namespace {
         constexpr char const* Host = "irc.chat.twitch.tv";
         constexpr int Port = 6697;
+        // Twitch pings about every 5 minutes. After a minute of silence we
+        // ping it ourselves; no reply within 20 s means the path is gone.
+        constexpr auto ProbeAfter = std::chrono::seconds(60);
+        constexpr auto DeadAfter = std::chrono::seconds(80);
 
         // The "emotes" tag ("25:0-4,12-16/1902:6-10") as segments. Its ranges
         // count Unicode code points, so map them onto the UTF-8 bytes first.
@@ -99,6 +105,7 @@ namespace StandaloneStreamChat::Chat {
     void TwitchIrcClient::Run() {
         int delaySeconds = 1;
         while (!_stopping) {
+            _joined = false;
             try {
                 ConnectAndRead();
                 // Server closed the connection or asked us to reconnect.
@@ -106,6 +113,9 @@ namespace StandaloneStreamChat::Chat {
             } catch (std::exception const& ex) {
                 if (_stopping)
                     break;
+                // A connection that had joined is a fresh outage, not more of an old one.
+                if (_joined)
+                    delaySeconds = 1;
                 _onStatus(fmt::format("Twitch: connection lost ({}), retrying in {}s", ex.what(), delaySeconds));
             }
 
@@ -127,9 +137,24 @@ namespace StandaloneStreamChat::Chat {
 
         constexpr size_t MaxLineBytes = 64 * 1024;
         std::string pending;
+        using Clock = Net::SilenceWatchdog::Clock;
+        Net::SilenceWatchdog watchdog(Clock::now(), ProbeAfter, DeadAfter);
         while (!_stopping) {
+            auto before = pending.size();
             if (!connection.Receive(pending, 250))
                 return;  // server closed; outer loop reconnects
+            auto now = Clock::now();
+            if (pending.size() != before)
+                watchdog.Heard(now);
+            switch (watchdog.Poll(now)) {
+                case Net::SilenceWatchdog::Action::Probe:
+                    connection.SendAll("PING :tmi.twitch.tv\r\n");  // answered with a PONG
+                    break;
+                case Net::SilenceWatchdog::Action::Dead:
+                    throw std::runtime_error(fmt::format("no reply from the server in {}s", DeadAfter.count()));
+                case Net::SilenceWatchdog::Action::None:
+                    break;
+            }
 
             size_t lineStart = 0;
             for (auto nl = pending.find('\n'); nl != std::string::npos; nl = pending.find('\n', lineStart)) {
@@ -150,6 +175,7 @@ namespace StandaloneStreamChat::Chat {
                 } else if (command == "001") {  // welcome: safe to join now
                     connection.SendAll("JOIN #" + _channel + "\r\n");
                 } else if (command == "366") {  // end of names: join complete
+                    _joined = true;
                     _onStatus(fmt::format("Twitch: joined #{}", _channel));
                 } else if (command == "PRIVMSG") {
                     HandlePrivmsg(*message);

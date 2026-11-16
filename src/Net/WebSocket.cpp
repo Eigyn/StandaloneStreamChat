@@ -158,8 +158,10 @@ namespace StandaloneStreamChat::Net {
             return true;
         if (_closed)
             return false;
+        auto before = _buffer.size();
         if (!_tls.Receive(_buffer, timeoutMs))
             return false;
+        _receivedBytes += _buffer.size() - before;
         return TakeMessage(message) || !_closed;
     }
 

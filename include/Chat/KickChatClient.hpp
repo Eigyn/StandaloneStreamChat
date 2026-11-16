@@ -41,5 +41,6 @@ namespace StandaloneStreamChat::Chat {
         std::string _chatroomId;
         RecentIds _seen{300};
         int _messageCount = 0;
+        bool _subscribed = false;  // the current connection reached the chatroom
     };
 }

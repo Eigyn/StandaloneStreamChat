@@ -66,6 +66,12 @@ namespace StandaloneStreamChat::Net {
 
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15L);
+        // Keeps NAT mappings of long-lived chat sockets alive and lets the
+        // kernel fail a read once the peer stops answering. The chat clients
+        // also watch for silence themselves (SilenceWatchdog), which is faster.
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 45L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &AbortWhenStopping);
         curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &stopping);

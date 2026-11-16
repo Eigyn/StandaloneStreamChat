@@ -28,5 +28,6 @@ namespace StandaloneStreamChat::Chat {
         std::string _channel;  // lowercase, without '#'
         std::string _channelId;
         int _messageCount = 0;
+        bool _joined = false;  // the current connection finished joining
     };
 }

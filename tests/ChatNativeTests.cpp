@@ -31,6 +31,7 @@
 #include "UI/GifDecoder.hpp"
 #include "UI/RichText.hpp"
 #include "Net/HttpClient.hpp"
+#include "Net/SilenceWatchdog.hpp"
 #include "Net/TlsConnection.hpp"
 #include "Net/WebSocket.hpp"
 #include "logging.hpp"
@@ -360,6 +361,27 @@ void RichTextEscape() {
     Check(Escape("héllo 😀 &lt; > plain") == "héllo 😀 &lt; > plain", "ordinary text is unchanged");
     std::cout << "PASS rich-text escaping leaves no tag or escape a viewer can start\n";
 }
+void Watchdog() {
+    using Net::SilenceWatchdog;
+    using namespace std::chrono_literals;
+    auto start = SilenceWatchdog::Clock::time_point{} + 1h;
+    SilenceWatchdog twitch(start, 60s, 80s);
+    Check(twitch.Poll(start + 59s) == SilenceWatchdog::Action::None, "quiet under a minute is fine");
+    Check(twitch.Poll(start + 60s) == SilenceWatchdog::Action::Probe, "a minute of silence sends a probe");
+    Check(twitch.Poll(start + 70s) == SilenceWatchdog::Action::None, "one probe per quiet spell");
+    twitch.Heard(start + 75s);
+    Check(twitch.Poll(start + 100s) == SilenceWatchdog::Action::None, "a reply restarts the clock");
+    Check(twitch.Poll(start + 135s) == SilenceWatchdog::Action::Probe, "the next quiet spell probes again");
+    Check(twitch.Poll(start + 155s) == SilenceWatchdog::Action::Dead, "an unanswered probe means the connection is dead");
+    SilenceWatchdog kick(start, SilenceWatchdog::Clock::duration::zero(), 30s);
+    Check(kick.Poll(start + 29s) == SilenceWatchdog::Action::None, "no probes when the server pings");
+    Check(kick.Poll(start + 30s) == SilenceWatchdog::Action::Dead, "no connect reply in time");
+    kick.Heard(start + 30s);
+    kick.SetDeadAfter(35s);
+    Check(kick.Poll(start + 64s) == SilenceWatchdog::Action::None && kick.Poll(start + 65s) == SilenceWatchdog::Action::Dead,
+          "a missed server ping plus grace means the connection is dead");
+    std::cout << "PASS silent connections are probed and then dropped\n";
+}
 }
 int main(int argc, char** argv) {
     if (argc == 2) {
@@ -371,7 +393,7 @@ int main(int argc, char** argv) {
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }
-    RichTextEscape();
+    RichTextEscape(); Watchdog();
     Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure(); OversizedImages();
     std::cout << "All chat native tests passed; external network traffic: none.\n";
 }

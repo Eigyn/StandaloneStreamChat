@@ -2,6 +2,7 @@
 #include "Chat/MessageMetadata.hpp"
 #include "Net/Curl.hpp"
 #include "Net/HttpClient.hpp"
+#include "Net/SilenceWatchdog.hpp"
 #include "Net/WebSocket.hpp"
 #include "logging.hpp"
 
@@ -18,6 +19,22 @@ namespace StandaloneStreamChat::Chat {
         // Fallback when the realtime lookup fails; it returned this server for every channel tried.
         constexpr char const* DefaultRealtimeUrl = "wss://realtime.us-west-2.platform.kick.com/connection/websocket";
         constexpr std::string_view ChatMessageEvent = "App\\Events\\ChatMessageEvent";
+
+        // Centrifugo pings every `ping` seconds (from the connect reply), so
+        // silence past one interval plus the grace its web client allows
+        // (10 s) means the path is gone.
+        constexpr auto PingGrace = std::chrono::seconds(10);
+        // Until the connect reply says otherwise.
+        constexpr auto ConnectReplyTimeout = std::chrono::seconds(30);
+        // A server that doesn't say how often it pings.
+        constexpr auto UnannouncedPingLimit = std::chrono::seconds(180);
+
+        std::chrono::seconds SilenceLimit(Json::Value const* connectReply) {
+            auto ping = Json::Get(connectReply, "ping");
+            if (!ping || !ping->IsInt() || ping->GetInt() <= 0)
+                return UnannouncedPingLimit;
+            return std::chrono::seconds(std::clamp(ping->GetInt(), 5, 600)) + PingGrace;
+        }
 
         std::vector<std::string> ApiHeaders(std::string_view slug) {
             return {"Accept: application/json", "Accept-Language: en-US,en;q=0.9", "Origin: https://kick.com",
@@ -189,6 +206,7 @@ namespace StandaloneStreamChat::Chat {
         std::optional<ChannelInfo> info;
         int delaySeconds = 2;
         while (!_stopping) {
+            _subscribed = false;
             try {
                 Net::HttpClient http(_stopping);
                 if (!info) {
@@ -208,6 +226,9 @@ namespace StandaloneStreamChat::Chat {
             } catch (std::exception const& ex) {
                 if (_stopping)
                     break;
+                // A connection that had subscribed is a fresh outage, not more of an old one.
+                if (_subscribed)
+                    delaySeconds = 2;
                 _onStatus(fmt::format("Kick: connection lost ({}), retrying in {}s", ex.what(), delaySeconds));
             }
 
@@ -306,10 +327,21 @@ namespace StandaloneStreamChat::Chat {
             }
         };
 
+        Net::SilenceWatchdog watchdog(Clock::now(), Clock::duration::zero(), ConnectReplyTimeout);
+        uint64_t heard = socket.ReceivedBytes();
         std::string frame;
         while (!_stopping) {
             if (!socket.Receive(frame, 250))
                 return;
+            auto now = Clock::now();
+            if (auto received = socket.ReceivedBytes(); received != heard) {
+                heard = received;
+                watchdog.Heard(now);
+            }
+            if (watchdog.Poll(now) == Net::SilenceWatchdog::Action::Dead) {
+                auto limit = std::chrono::duration_cast<std::chrono::seconds>(watchdog.DeadAfter());
+                throw std::runtime_error(fmt::format("no data from the server in {}s", limit.count()));
+            }
             if (refreshAt && Clock::now() >= *refreshAt) {
                 refreshAt.reset();
                 socket.SendText(fmt::format(R"({{"id":{},"refresh":{{"token":{}}}}})", nextId++, Json::Quote(GuestToken(http, clientId))));
@@ -334,9 +366,11 @@ namespace StandaloneStreamChat::Chat {
 
                 if (auto connect = Json::Get(&doc, "connect")) {
                     scheduleRefresh(connect);
+                    watchdog.SetDeadAfter(SilenceLimit(connect));
                 } else if (auto refresh = Json::Get(&doc, "refresh")) {
                     scheduleRefresh(refresh);
                 } else if (Json::Get(&doc, "subscribe") && Json::Scalar(Json::Get(&doc, "id")) == std::to_string(subscribeId)) {
+                    _subscribed = true;
                     _onStatus(fmt::format("Kick: connected to {} chat", info.displayName));
                 } else if (auto push = Json::Get(&doc, "push")) {
                     if (Json::Get(push, "disconnect"))

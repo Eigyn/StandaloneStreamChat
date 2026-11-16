@@ -24,6 +24,9 @@ namespace StandaloneStreamChat::Net {
         /// Waits up to `timeoutMs` for one complete message. Returns false once
         /// the server closed the connection; `message` stays empty on timeout.
         bool Receive(std::string& message, int timeoutMs);
+        /// Bytes read from the server since the upgrade, control frames
+        /// included, so a caller can tell a quiet connection from a dead one.
+        uint64_t ReceivedBytes() const { return _receivedBytes; }
 
        private:
         struct Frame {
@@ -41,6 +44,7 @@ namespace StandaloneStreamChat::Net {
         std::string _buffer;     // received bytes not yet parsed into frames
         std::string _fragments;  // payload of a message still missing its final frame
         bool _closed = false;
+        uint64_t _receivedBytes = 0;
         std::mt19937 _rng;
     };
 }
