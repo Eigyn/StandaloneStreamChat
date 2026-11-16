@@ -410,6 +410,8 @@ void UpdateNotice() {
     Check(!ReleaseTag(R"({"tag_name":"v0.11.0","prerelease":true})") && !ReleaseTag(R"({"tag_name":"v0.11.0","draft":true})") &&
               !ReleaseTag(R"({"message":"Not Found"})") && !ReleaseTag("<html>rate limited</html>"),
           "drafts, prereleases and error replies give no tag");
+    Check(NoticeText("v0.10.1") == "Updated mod version available on Github (v0.10.1). (https://github.com/Eigyn/StandaloneStreamChat/releases/tag/v0.10.1).",
+          "update notice wording and release link");
     std::cout << "PASS update notices compare release and test versions\n";
 }
 }

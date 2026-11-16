@@ -83,6 +83,13 @@ namespace StandaloneStreamChat::Updates {
         return tag;
     }
 
+    /// The feed line for a newer release. The link is built from the tag,
+    /// which ParseVersion has already limited to version characters.
+    inline std::string NoticeText(std::string_view tag) {
+        return "Updated mod version available on Github (" + std::string(tag) + "). (https://github.com/" + std::string(Repository) +
+               "/releases/tag/" + std::string(tag) + ").";
+    }
+
     /// Starts the check on a background thread, once per launch. Main thread.
     void CheckForUpdate();
 }

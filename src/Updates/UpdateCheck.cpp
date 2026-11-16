@@ -93,10 +93,7 @@ namespace StandaloneStreamChat::Updates {
                 }
                 INFO("Update check: {} is available; this is {}", *tag, VERSION);
                 // Shown even with Show System Messages off: it isn't connection noise.
-                Chat::ChatManager::Instance().AddSystemMessage(
-                    fmt::format("Update available: StandaloneStreamChat {} is out on GitHub (you have {}). Get it from github.com/{}/releases",
-                                *tag, VERSION, Repository),
-                    true);
+                Chat::ChatManager::Instance().AddSystemMessage(NoticeText(*tag), true);
             }
 
             std::atomic<bool> _stopping{false};
