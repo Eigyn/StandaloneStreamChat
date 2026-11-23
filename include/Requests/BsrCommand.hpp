@@ -12,6 +12,9 @@ namespace StandaloneStreamChat::Requests {
     /// True if `text` starts with the !bsr command word.
     bool IsBsrCommand(std::string_view text);
 
+    /// True if `text` starts with !wrongsong or !oops: take back your latest request.
+    bool IsWrongSongCommand(std::string_view text);
+
     /// Reads "!bsr <key>" or "!bsr https://beatsaver.com/maps/<key>".
     /// !request is deliberately not supported.
     BsrCommand ParseBsr(std::string_view text);

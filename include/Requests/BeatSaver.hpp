@@ -13,7 +13,15 @@ namespace StandaloneStreamChat::Requests {
         std::string mapper;
         std::string hash;  // lowercase
         std::string downloadUrl;
+        // For the map filters; negative when BeatSaver didn't say.
+        float rating = -1.0f;  // BeatSaver's score, 0..1
+        int durationSeconds = -1;
+        float lowestNps = -1.0f;  // the newest version's easiest difficulty
     };
+
+    /// Why the map filters turn `map` down ("rated 62%, below 70%"), or empty
+    /// if it passes. A 0 limit is off, and a value BeatSaver didn't give passes.
+    std::string MapFilterReason(MapInfo const& map, int minRatingPercent, int maxLengthMinutes, float maxNps);
 
     /// NotFound is a real 404 (or a map with nothing to download), which
     /// drops the request; Error is anything transient, which is retried, so

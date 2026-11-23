@@ -3,7 +3,7 @@
 #include "Chat/ChatManager.hpp"
 #include "Requests/SongRequestManager.hpp"
 #include "UI/ChatPanel.hpp"
-#include "UI/Settings.hpp"
+#include "UI/SettingsFlowCoordinator.hpp"
 #include "Updates/UpdateCheck.hpp"
 
 #include "scotland2/shared/loader.hpp"
@@ -75,8 +75,7 @@ MOD_EXPORT_FUNC void late_load() noexcept {
 
     custom_types::Register::AutoRegister();
     BSML::Init();
-    BSML::Register::RegisterMainMenu("StandaloneStreamChat", "StandaloneStreamChat", "Twitch + YouTube + Kick stream chat settings",
-        &StandaloneStreamChat::UI::SettingsDidActivate);
+    BSML::Register::RegisterMainMenu<StandaloneStreamChat::SettingsFlowCoordinator*>("StandaloneStreamChat", "Twitch + YouTube + Kick stream chat settings");
 
     // A named logger: beatsaber-hook 6 (1.40.8) takes it by non-const reference.
     static auto hookLogger = Paper::ConstLoggerContext(MOD_ID);

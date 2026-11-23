@@ -81,6 +81,13 @@ namespace StandaloneStreamChat {
         float positionZ = DefaultPositionZ;
         float rotationX = DefaultRotationX;
         float rotationY = DefaultRotationY;
+        // During songs the panel can sit somewhere else; off = the pose above everywhere.
+        bool separatePlayingPosition = false;
+        float playingPositionX = DefaultPositionX;
+        float playingPositionY = DefaultPositionY;
+        float playingPositionZ = DefaultPositionZ;
+        float playingRotationX = DefaultRotationX;
+        float playingRotationY = DefaultRotationY;
 
         // Song requests: viewers type "!bsr <key>".
         Shared<bool> enableSongRequests = true;
@@ -92,8 +99,20 @@ namespace StandaloneStreamChat {
         Shared<bool> allowDuplicates = false;
         // Requests one viewer may have queued at once; 0 = unlimited.
         Shared<int> maxRequestsPerUser = 2;
+        // The queue stops taking viewers' requests at this size (at most 100).
+        Shared<int> maxQueueSize = 100;
+        // Map filters for viewers' requests, checked once BeatSaver answers; 0 = off.
+        Shared<int> minRatingPercent = 0;
+        Shared<int> maxLengthMinutes = 0;
+        Shared<float> maxNps = 0.0f;  // a map passes if any difficulty is at or below it
         // Keep the queue across game restarts.
         Shared<bool> persistRequestQueue = true;
+
+        // Filters, as typed: comma-separated names and words or phrases. The
+        // chat threads read the parsed copy in Chat::SetFilters, not these.
+        std::string blockedUsers;
+        std::string blockedWords;
+        bool hideCommands = false;  // keep "!" messages out of the feed
     };
 
     Config& GetConfig();

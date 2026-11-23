@@ -4,6 +4,8 @@
 // Accept), the installer (it only refreshes SongCore and opens a song where
 // that's safe) and the navigator, so they can never disagree. Main thread.
 namespace StandaloneStreamChat::Songs::MenuState {
+    /// A song (or multiplayer match) is loaded, paused or not.
+    bool Playing();
     /// Any menu screen: not during a song or a menu transition.
     bool InMenu();
     /// The solo or party results screen. Accepting from it used to crash the

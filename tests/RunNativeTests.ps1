@@ -15,6 +15,9 @@ $headers = '#include "rapidjson/document.h"' + [Environment]::NewLine + '#includ
 [System.IO.File]::WriteAllText((Join-Path $outputRoot 'shim/Chat/Json.hpp'), $json.Replace('#include "Compat.hpp"', $headers), $utf8)
 $logging = '#pragma once' + [Environment]::NewLine + '#include "fmt/format.h"' + [Environment]::NewLine + '#define INFO(...) ((void)0)' + [Environment]::NewLine + '#define DEBUG(...) ((void)0)' + [Environment]::NewLine + '#define ERROR(...) ((void)0)' + [Environment]::NewLine + '#define WARNING(...) ((void)0)'
 [System.IO.File]::WriteAllText((Join-Path $outputRoot 'shim/logging.hpp'), $logging, $utf8)
+# The build passes VERSION on the command line; BeatSaver.cpp's User-Agent needs one.
+$versionShim = Join-Path $outputRoot 'shim/version.hpp'
+[System.IO.File]::WriteAllText($versionShim, '#define VERSION "native-test"', $utf8)
 # Exercise the production download queue without requiring a Unity process.
 $atlas = [System.IO.File]::ReadAllText((Join-Path $qmodRoot 'src/UI/EmoteAtlas.cpp'))
 $start = $atlas.IndexOf('    // One worker,')
@@ -24,9 +27,9 @@ $downloader = 'namespace StandaloneStreamChat::UI { constexpr size_t MaxDownload
 [System.IO.File]::WriteAllText((Join-Path $outputRoot 'shim/Downloader-under-test.hpp'), $downloader, $utf8)
 $ndk = ([System.IO.File]::ReadAllText((Join-Path $qmodRoot 'bs-1.40.8/ndkpath.txt'))).Trim()
 $compiler = Join-Path $ndk 'toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android29-clang++.cmd'
-$includeArgs = @('-std=c++23','-O1','-DFMT_HEADER_ONLY','-I',(Join-Path $outputRoot 'shim'),'-I',(Join-Path $qmodRoot 'include'),'-I',(Join-Path $qmodRoot 'bs-1.40.8/extern/includes'),'-I',(Join-Path $qmodRoot 'bs-1.40.8/extern/includes/beatsaber-hook/shared/rapidjson/include'),'-I',(Join-Path $qmodRoot 'bs-1.40.8/extern/includes/fmt/fmt/include'))
+$includeArgs = @('-std=c++23','-O1','-DFMT_HEADER_ONLY','-include',$versionShim,'-I',(Join-Path $outputRoot 'shim'),'-I',(Join-Path $qmodRoot 'include'),'-I',(Join-Path $qmodRoot 'bs-1.40.8/extern/includes'),'-I',(Join-Path $qmodRoot 'bs-1.40.8/extern/includes/beatsaber-hook/shared/rapidjson/include'),'-I',(Join-Path $qmodRoot 'bs-1.40.8/extern/includes/fmt/fmt/include'))
 $units = @((Join-Path $PSScriptRoot 'ChatNativeTests.cpp'))
-foreach ($file in @('Chat/TwitchIrcClient.cpp','Chat/IrcMessage.cpp','Chat/ChatService.cpp','Chat/ThirdPartyEmotes.cpp','Chat/YouTubeChatClient.cpp','Chat/KickChatClient.cpp','UI/GifDecoder.cpp')) { $units += Join-Path $qmodRoot ('src/' + $file) }
+foreach ($file in @('Chat/TwitchIrcClient.cpp','Chat/IrcMessage.cpp','Chat/ChatService.cpp','Chat/ThirdPartyEmotes.cpp','Chat/YouTubeChatClient.cpp','Chat/KickChatClient.cpp','Chat/ChatFilter.cpp','Requests/BsrCommand.cpp','Requests/BeatSaver.cpp','UI/GifDecoder.cpp')) { $units += Join-Path $qmodRoot ('src/' + $file) }
 $objects = @()
 $compileLog = Join-Path $outputRoot 'compile.log'
 Set-Content -LiteralPath $compileLog -Value ''

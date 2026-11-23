@@ -278,13 +278,29 @@ namespace StandaloneStreamChat::Requests {
     void SongRequestManager::OnChatMessage(ChatMessage const& message) {
         if (message.platform == ChatPlatform::System || message.author.empty() || !GetConfig().enableSongRequests)
             return;
+        bool wrongSong = IsWrongSongCommand(message.text);
         auto command = ParseBsr(message.text);
-        if (!command.isCommand)
+        if (!command.isCommand && !wrongSong)
             return;
 
         auto user = UserKey(message);
         auto mention = "@" + message.author;
         std::lock_guard lock(_lock);
+        if (wrongSong) {
+            // Their newest request that isn't being installed. They can ask again right away.
+            auto mine = std::find_if(_queue.rbegin(), _queue.rend(),
+                                     [&](Entry const& e) { return SameRequester(e.request, message) && !IsInProgress(e.request.status); });
+            if (mine == _queue.rend()) {
+                NoticeLocked(mention + " you have no request to take back.", "wrongsong:" + user);
+                return;
+            }
+            auto const& request = mine->request;
+            NoticeLocked(mention + " removed your request for " + (request.songName.empty() ? request.key : request.songName) + ".");
+            _queue.erase(std::next(mine).base());
+            _lastRequest.erase(user);
+            ChangedLocked(true);
+            return;
+        }
         if (command.key.empty()) {
             NoticeLocked(mention + " that isn't a valid map key.", "invalid:" + user);
             return;
@@ -347,7 +363,8 @@ namespace StandaloneStreamChat::Requests {
         auto cooldown = std::chrono::seconds(std::max(0, config.perUserCooldownSeconds.Get()));
         if (auto last = _lastRequest.find(user); !trusted && cooldown > 0s && last != _lastRequest.end() && now - last->second < cooldown)
             return Enqueue::OnCooldown;
-        if (_queue.size() >= QueueCapacity)
+        auto capacity = trusted ? QueueCapacity : std::clamp<size_t>(std::max(0, config.maxQueueSize.Get()), 1, QueueCapacity);
+        if (_queue.size() >= capacity)
             return Enqueue::QueueFull;
         // A not-found or failed entry doesn't block asking for the same map again.
         if (!config.allowDuplicates && std::any_of(_queue.begin(), _queue.end(), [&](Entry const& e) {
@@ -372,6 +389,7 @@ namespace StandaloneStreamChat::Requests {
         entry.request.sourceChannelName = message.channelName;
         entry.request.platform = message.platform;
         entry.nextLookup = now;
+        entry.checkMapFilters = !trusted;
         _queue.push_back(std::move(entry));
         _lastRequest[user] = now;
         _added = true;
@@ -509,6 +527,17 @@ namespace StandaloneStreamChat::Requests {
         auto& request = entry->request;
         switch (lookup.outcome) {
             case LookupOutcome::Found:
+                if (entry->checkMapFilters) {
+                    auto const& config = GetConfig();
+                    auto reason = MapFilterReason(lookup.info, config.minRatingPercent, config.maxLengthMinutes, config.maxNps);
+                    if (!reason.empty()) {
+                        INFO("Song request {} from {} filtered: {}", request.key, request.requester, reason);
+                        NoticeLocked("@" + request.requester + " map " + request.key + " was removed: " + reason + ".");
+                        std::erase_if(_queue, [id](Entry const& e) { return e.request.id == id; });
+                        ChangedLocked(true);
+                        break;
+                    }
+                }
                 request.songName = lookup.info.songName;
                 request.songAuthor = lookup.info.songAuthor;
                 request.mapper = lookup.info.mapper;

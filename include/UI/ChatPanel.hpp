@@ -77,6 +77,8 @@ DECLARE_CLASS_CODEGEN_INTERFACES(StandaloneStreamChat, ChatPanel, UnityEngine::M
     DECLARE_INSTANCE_FIELD(UnityEngine::Quaternion, _grabStartRotation);
     DECLARE_INSTANCE_FIELD(int, _lastVersion);
     DECLARE_INSTANCE_FIELD(int, _heightCheckFrames);
+    DECLARE_INSTANCE_FIELD(bool, _playing);  // a song is loaded (the pause menu counts)
+    DECLARE_INSTANCE_FIELD(float, _nextSceneCheck);
 
     DECLARE_INSTANCE_METHOD(void, Update);
     DECLARE_OVERRIDE_METHOD_MATCH(void, OnPointerDown, &::UnityEngine::EventSystems::IPointerDownHandler::OnPointerDown,
@@ -89,10 +91,18 @@ DECLARE_CLASS_CODEGEN_INTERFACES(StandaloneStreamChat, ChatPanel, UnityEngine::M
     static void EnsureCreated();
     /// Re-applies visibility, size, backdrop, curve and text settings from the config.
     static void ApplyConfig();
-    /// Moves the panel back to its default position and saves that.
+    /// Moves the panel back to its default menu position and saves that.
     static void Recenter();
+    /// While on (the Positions page is open), drags aren't saved. Off puts
+    /// the panel back at its saved position.
+    static void SetPositioning(bool on);
+    /// Saves where the panel is now as the menu position, or (`playing`) as
+    /// the one for songs, which turns that one on.
+    static void CapturePosition(bool playing);
 
    private:
+    /// Moves the panel to the menu position, or to the song one during a song when that's on.
+    void PlaceForScene();
     /// The text material for the current curve setting.
     UnityEngine::Material* TextMaterial();
     /// Brings the rows in line with the newest messages, reusing the oldest

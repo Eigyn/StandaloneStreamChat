@@ -98,16 +98,16 @@ namespace {
 }
 
 namespace StandaloneStreamChat::UI {
-    void SettingsDidActivate(HMUI::ViewController* self, bool firstActivation, bool, bool) {
-        if (!firstActivation)
-            return;
-
+    void BuildSettingsView(HMUI::ViewController* view, std::string_view bsml) {
         // The host is a component on the view, so it lives exactly as long as the controls bound to it.
-        auto host = self->get_gameObject()->AddComponent<SettingsHost*>();
-        BSML::parse_and_construct(SettingsBsml, self->get_transform(), host);
-        for (auto setting : self->GetComponentsInChildren<BSML::StringSetting*>(true))
+        auto host = view->get_gameObject()->AddComponent<SettingsHost*>();
+        host->whoCanRequestOptions = ListW<System::Object*>::New();
+        for (auto name : SettingsHost::WhoCanRequestNames)
+            host->whoCanRequestOptions.push_back(static_cast<System::Object*>(StringW(name).convert()));
+        BSML::parse_and_construct(bsml, view->get_transform(), host);
+        for (auto setting : view->GetComponentsInChildren<BSML::StringSetting*>(true))
             FormatChannelInput(setting);
-        for (auto setting : self->GetComponentsInChildren<BSML::ColorSetting*>(true))
+        for (auto setting : view->GetComponentsInChildren<BSML::ColorSetting*>(true))
             FormatColorInput(setting);
     }
 }

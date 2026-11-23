@@ -2,6 +2,7 @@
 #include "Chat/ChatManager.hpp"
 #include "Chat/ThirdPartyEmotes.hpp"
 #include "Requests/SongRequestManager.hpp"
+#include "Songs/MenuState.hpp"
 #include "Config.hpp"
 #include "logging.hpp"
 
@@ -244,15 +245,21 @@ namespace {
         return std::clamp(std::round(radius * 2.0f) / 2.0f, 0.5f, 10.0f);
     }
 
-    void SavePanelTransform(UnityEngine::Transform* transform) {
+    // While the Positions settings page is open, a drag only moves the panel.
+    bool positioning = false;
+
+    // Saves the panel's pose as the menu's, or (`playing`) as the one for songs.
+    void SavePanelTransform(UnityEngine::Transform* transform, bool playing) {
         auto& config = GetConfig();
         auto position = transform->get_position();
-        config.positionX = position.x;
-        config.positionY = position.y;
-        config.positionZ = position.z;
         auto euler = transform->get_eulerAngles();
-        config.rotationX = NormalizeAngle(euler.x);
-        config.rotationY = NormalizeAngle(euler.y);
+        (playing ? config.playingPositionX : config.positionX) = position.x;
+        (playing ? config.playingPositionY : config.positionY) = position.y;
+        (playing ? config.playingPositionZ : config.positionZ) = position.z;
+        (playing ? config.playingRotationX : config.rotationX) = NormalizeAngle(euler.x);
+        (playing ? config.playingRotationY : config.rotationY) = NormalizeAngle(euler.y);
+        if (playing)
+            config.separatePlayingPosition = true;
         SaveConfig();
     }
 
@@ -581,7 +588,8 @@ namespace StandaloneStreamChat {
             return;
         _grabController = nullptr;
         ApplyMoveConstraint();
-        SavePanelTransform(_screen->get_transform());
+        if (!positioning)
+            SavePanelTransform(_screen->get_transform(), _playing);  // in the pause menu: the pose for songs
     }
 
     // Eases toward where the controller is carrying the panel; the thumbstick
@@ -837,13 +845,43 @@ namespace StandaloneStreamChat {
         config.rotationX = DefaultRotationX;
         config.rotationY = DefaultRotationY;
         SaveConfig();
-        if (!instance)
-            return;
-        instance->_screen->set_ScreenPosition({config.positionX, config.positionY, config.positionZ});
-        instance->_screen->set_ScreenRotation(UnityEngine::Quaternion::Euler(config.rotationX, config.rotationY, 0.0f));
+        if (instance)
+            instance->PlaceForScene();
+    }
+
+    void ChatPanel::SetPositioning(bool on) {
+        positioning = on;
+        // Back to the saved pose, dropping wherever it was dragged meanwhile.
+        if (!on && instance) {
+            instance->_grabController = nullptr;
+            instance->PlaceForScene();
+        }
+    }
+
+    void ChatPanel::CapturePosition(bool playing) {
+        if (instance)
+            SavePanelTransform(instance->_screen->get_transform(), playing);
+    }
+
+    void ChatPanel::PlaceForScene() {
+        auto const& config = GetConfig();
+        bool playing = _playing && config.separatePlayingPosition;
+        _screen->set_ScreenPosition(playing ? UnityEngine::Vector3(config.playingPositionX, config.playingPositionY, config.playingPositionZ)
+                                            : UnityEngine::Vector3(config.positionX, config.positionY, config.positionZ));
+        _screen->set_ScreenRotation(UnityEngine::Quaternion::Euler(playing ? config.playingRotationX : config.rotationX,
+                                                                   playing ? config.playingRotationY : config.rotationY, 0.0f));
     }
 
     void ChatPanel::Update() {
+        // A song started or ended: move to that scene's pose.
+        if (float now = UnityEngine::Time::get_unscaledTime(); now >= _nextSceneCheck) {
+            _nextSceneCheck = now + 0.25f;
+            if (bool playing = Songs::MenuState::Playing(); playing != _playing) {
+                _playing = playing;
+                _grabController = nullptr;
+                PlaceForScene();
+            }
+        }
         if (_grabController)
             FollowController();
         if (UnityEngine::Time::get_unscaledTime() >= _nextViewerRefresh)

@@ -43,7 +43,7 @@ namespace StandaloneStreamChat::Requests {
         /// Restores the saved queue and starts the workers. Main thread, once.
         void Start();
         void Stop();
-        /// Handles a "!bsr" message. Any thread.
+        /// Handles a "!bsr" or "!wrongsong" message. Any thread.
         void OnChatMessage(Chat::ChatMessage const& message);
         void OnModeration(Chat::ChatMessage const& event);
         /// Drop menu-bound state before a soft restart. Resume any download once the menu returns.
@@ -79,6 +79,9 @@ namespace StandaloneStreamChat::Requests {
             SongRequest request;
             Clock::time_point nextLookup;  // FetchingInfo: when to ask BeatSaver
             int failedLookups = 0;
+            // A viewer's new request; the map filters run once BeatSaver answers.
+            // Not for the broadcaster, mods, or a queue restored at startup.
+            bool checkMapFilters = false;
             Clock::time_point dropAt;  // NotFound: when it leaves the queue
             // Where this session's download went, which may be a de-duplicated
             // name; checked again on every Accept in case it was deleted.

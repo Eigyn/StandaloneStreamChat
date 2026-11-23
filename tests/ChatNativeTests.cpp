@@ -34,8 +34,12 @@
 #include "Net/SilenceWatchdog.hpp"
 #include "Net/TlsConnection.hpp"
 #include "Net/WebSocket.hpp"
+#include "Requests/BeatSaver.hpp"
+#include "Requests/BsrCommand.hpp"
 #include "Requests/RequestPermission.hpp"
+#include "Chat/ChatFilter.hpp"
 #include "Updates/UpdateCheck.hpp"
+#include <cmath>
 #include "logging.hpp"
 #include "Downloader-under-test.hpp"
 
@@ -87,6 +91,10 @@ HttpClient::Response HttpClient::Get(std::string const& url, std::vector<std::st
                      R"({"id":"still","name":"StillSeven","data":{"host":{"url":"//fixture/still","files":[{"name":"2x.png"},{"name":"2x.webp"}]}}},)"
                      R"({"id":"both","name":"BothSeven","data":{"host":{"url":"//fixture/both","files":[{"name":"2x.png"},{"name":"2x.gif"}]}}}]}})"};
     }
+    if (url.find("api.beatsaver.com/maps/id/") != std::string::npos)
+        return {200, R"({"id":"1a2b","name":"Fallback","metadata":{"songName":"Song","songAuthorName":"Artist","levelAuthorName":"Mapper","duration":245},)"
+                     R"("stats":{"score":0.62},"versions":[{"hash":"0123456789ABCDEF0123456789abcdef01234567","downloadURL":"https://fixture/map.zip",)"
+                     R"("createdAt":"2024-01-01T00:00:00Z","diffs":[{"nps":7.5},{"nps":3.4}]}]})"};
     if (url.find("betterttv") != std::string::npos) return {200, "[]"};
     if (url.find("frankerfacez") != std::string::npos) return {200, R"({"sets":{}})"};
     return {200, R"({"emotes":[]})"};
@@ -460,6 +468,61 @@ void RequestPermissions() {
     Check(IsWhoCanRequest(0) && IsWhoCanRequest(2) && !IsWhoCanRequest(3) && !IsWhoCanRequest(-1), "config values outside 0-2 are rejected");
     std::cout << "PASS request permissions fail closed\n";
 }
+void RequestLimits() {
+    using namespace Requests;
+    Check(IsWrongSongCommand("!wrongsong") && IsWrongSongCommand("  !OOPS sorry") && !IsWrongSongCommand("!oopsie") && !IsWrongSongCommand("oops"),
+          "!wrongsong and !oops only as the command word");
+    Check(IsBsrCommand("!bsr 1a2b") && !IsBsrCommand("!bsrx 1a2b") && ParseBsr("!BSR 1A2B").key == "1a2b", "!bsr parsing unchanged");
+    std::atomic<bool> stop{false};
+    Net::HttpClient http(stop);
+    auto lookup = LookUpMap(http, "1a2b");
+    auto const& map = lookup.info;
+    Check(lookup.outcome == LookupOutcome::Found && map.hash == "0123456789abcdef0123456789abcdef01234567" && map.songName == "Song",
+          "BeatSaver lookup still finds the newest version");
+    Check(std::abs(map.rating - 0.62f) < 0.001f && map.durationSeconds == 245 && std::abs(map.lowestNps - 3.4f) < 0.001f,
+          "BeatSaver rating, length and easiest difficulty's NPS");
+    Check(MapFilterReason(map, 0, 0, 0.0f).empty(), "0 turns every map filter off");
+    Check(MapFilterReason(map, 70, 0, 0.0f) == "rated 62%, below 70%" && MapFilterReason(map, 60, 0, 0.0f).empty(), "minimum rating");
+    Check(MapFilterReason(map, 0, 4, 0.0f) == "4:05 long, over 4 min" && MapFilterReason(map, 0, 5, 0.0f).empty(), "maximum length");
+    Check(MapFilterReason(map, 0, 0, 3.0f) == "easiest difficulty 3.4 NPS, over 3.0" && MapFilterReason(map, 0, 0, 3.5f).empty(),
+          "maximum NPS checks the easiest difficulty");
+    Check(MapFilterReason(MapInfo{}, 90, 1, 1.0f).empty(), "stats BeatSaver didn't give never reject a map");
+    std::cout << "PASS request commands and map filters\n";
+}
+void ChatFilters() {
+    using namespace Chat;
+    Check(ParseFilterList(" Bob, @Ann,, Spam Bot ") == std::vector<std::string>{"bob", "ann", "spam bot"}, "filter lists trim, lowercase and drop @");
+    Check(ContainsPhrase("You ARE a Spammer!", "spammer") && ContainsPhrase("buy  followers", "buy  followers") && !ContainsPhrase("classic", "ass") &&
+              !ContainsPhrase("caf\xc3\xa9", "caf") && ContainsPhrase("so :badEmote: wow", ":bademote:"),
+          "blocked words match whole words in any case");
+    SetFilters("Nightbot, @YtUser", "badword", true);
+    ChatMessage message;
+    message.platform = ChatPlatform::Twitch;
+    message.author = "NightBot";
+    message.text = "hello";
+    Check(CheckFilters(message) == FilterResult::Block, "blocked by display name");
+    message.author = "Night Bot";
+    message.authorLogin = "nightbot";
+    Check(CheckFilters(message) == FilterResult::Block, "blocked by login");
+    message.authorLogin.clear();
+    message.author = "@ytuser";
+    Check(CheckFilters(message) == FilterResult::Block, "a YouTube @name matches without the @");
+    message.author = "Viewer";
+    message.text = "what a BADWORD";
+    Check(CheckFilters(message) == FilterResult::Block, "blocked by word");
+    message.text = "  !bsr 1a2b";
+    Check(CheckFilters(message) == FilterResult::HideCommand, "commands are hidden, not blocked");
+    message.isNotice = true;
+    message.text = "!subscribed";
+    Check(CheckFilters(message) == FilterResult::Show, "notices are not commands");
+    message.isNotice = false;
+    message.text = "hello";
+    Check(CheckFilters(message) == FilterResult::Show, "everything else shows");
+    SetFilters("", "", false);
+    message.text = "!bsr 1a2b";
+    Check(CheckFilters(message) == FilterResult::Show, "filters off");
+    std::cout << "PASS chat filters\n";
+}
 // A long outage posts one problem line, not one per retry.
 struct StatusProbe : Chat::ChatService {
     explicit StatusProbe(StatusHandler onStatus) : ChatService([](ChatMessage) {}, std::move(onStatus)) {}
@@ -517,7 +580,7 @@ int main(int argc, char** argv) {
         std::cout << "PASS real GIF: " << animation.width << 'x' << animation.height << ", " << animation.frames.size() << " sampled frames, " << animation.Bytes() << " bytes\n";
         return 0;
     }
-    EmoteInputBounds(); RequestPermissions(); StatusLines(); RichTextEscape(); Watchdog(); UpdateNotice();
+    EmoteInputBounds(); RequestPermissions(); RequestLimits(); ChatFilters(); StatusLines(); RichTextEscape(); Watchdog(); UpdateNotice();
     Moderation(); OtherPlatforms(); Resources(); GifAndReferences(); Backpressure(); OversizedImages();
     std::cout << "All chat native tests passed; external network traffic: none.\n";
 }

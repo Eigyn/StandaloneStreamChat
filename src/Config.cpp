@@ -1,6 +1,7 @@
 #include "Compat.hpp"
 
 #include "Config.hpp"
+#include "Chat/ChatFilter.hpp"
 #include "Requests/RequestPermission.hpp"
 #include "logging.hpp"
 
@@ -168,6 +169,12 @@ namespace StandaloneStreamChat {
         Read(doc, "PositionZ", config.positionZ);
         Read(doc, "RotationX", config.rotationX);
         Read(doc, "RotationY", config.rotationY);
+        Read(doc, "SeparatePlayingPosition", config.separatePlayingPosition);
+        Read(doc, "PlayingPositionX", config.playingPositionX);
+        Read(doc, "PlayingPositionY", config.playingPositionY);
+        Read(doc, "PlayingPositionZ", config.playingPositionZ);
+        Read(doc, "PlayingRotationX", config.playingRotationX);
+        Read(doc, "PlayingRotationY", config.playingRotationY);
         Read(doc, "EnableSongRequests", config.enableSongRequests);
         Read(doc, "WhoCanRequest", config.whoCanRequest);
         if (!Requests::IsWhoCanRequest(config.whoCanRequest)) {
@@ -177,7 +184,15 @@ namespace StandaloneStreamChat {
         Read(doc, "PerUserCooldownSeconds", config.perUserCooldownSeconds);
         Read(doc, "AllowDuplicates", config.allowDuplicates);
         Read(doc, "MaxRequestsPerUser", config.maxRequestsPerUser);
+        Read(doc, "MaxQueueSize", config.maxQueueSize);
+        Read(doc, "MinRatingPercent", config.minRatingPercent);
+        Read(doc, "MaxLengthMinutes", config.maxLengthMinutes);
+        Read(doc, "MaxNps", config.maxNps);
         Read(doc, "PersistRequestQueue", config.persistRequestQueue);
+        Read(doc, "BlockedUsers", config.blockedUsers);
+        Read(doc, "BlockedWords", config.blockedWords);
+        Read(doc, "HideCommands", config.hideCommands);
+        Chat::SetFilters(config.blockedUsers, config.blockedWords, config.hideCommands);
     }
 
     void SaveConfig() {
@@ -213,12 +228,25 @@ namespace StandaloneStreamChat {
         writer.Key("PositionZ"); writer.Double(config.positionZ);
         writer.Key("RotationX"); writer.Double(config.rotationX);
         writer.Key("RotationY"); writer.Double(config.rotationY);
+        writer.Key("SeparatePlayingPosition"); writer.Bool(config.separatePlayingPosition);
+        writer.Key("PlayingPositionX"); writer.Double(config.playingPositionX);
+        writer.Key("PlayingPositionY"); writer.Double(config.playingPositionY);
+        writer.Key("PlayingPositionZ"); writer.Double(config.playingPositionZ);
+        writer.Key("PlayingRotationX"); writer.Double(config.playingRotationX);
+        writer.Key("PlayingRotationY"); writer.Double(config.playingRotationY);
         writer.Key("EnableSongRequests"); writer.Bool(config.enableSongRequests);
         writer.Key("WhoCanRequest"); writer.Int(config.whoCanRequest);
         writer.Key("PerUserCooldownSeconds"); writer.Int(config.perUserCooldownSeconds);
         writer.Key("AllowDuplicates"); writer.Bool(config.allowDuplicates);
         writer.Key("MaxRequestsPerUser"); writer.Int(config.maxRequestsPerUser);
+        writer.Key("MaxQueueSize"); writer.Int(config.maxQueueSize);
+        writer.Key("MinRatingPercent"); writer.Int(config.minRatingPercent);
+        writer.Key("MaxLengthMinutes"); writer.Int(config.maxLengthMinutes);
+        writer.Key("MaxNps"); writer.Double(config.maxNps);
         writer.Key("PersistRequestQueue"); writer.Bool(config.persistRequestQueue);
+        writer.Key("BlockedUsers"); writer.String(config.blockedUsers.c_str(), config.blockedUsers.size());
+        writer.Key("BlockedWords"); writer.String(config.blockedWords.c_str(), config.blockedWords.size());
+        writer.Key("HideCommands"); writer.Bool(config.hideCommands);
         writer.EndObject();
 
         auto path = ConfigPath();

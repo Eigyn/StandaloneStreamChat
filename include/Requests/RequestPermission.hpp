@@ -1,9 +1,9 @@
 #pragma once
 
 namespace StandaloneStreamChat::Requests {
-    /// Config::whoCanRequest values. The setting lives only in the config
-    /// file, so anything else (a typo) is read as BroadcasterOnly: a mistake
-    /// can close requests, never open them to everyone.
+    /// Config::whoCanRequest values. Anything else (a typo in the config
+    /// file) is read as BroadcasterOnly: a mistake can close requests,
+    /// never open them to everyone.
     enum WhoCanRequest : int { Everyone = 0, ModeratorsAndBroadcaster = 1, BroadcasterOnly = 2 };
 
     inline bool IsWhoCanRequest(int value) { return value >= Everyone && value <= BroadcasterOnly; }

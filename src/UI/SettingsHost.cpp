@@ -1,6 +1,8 @@
 #include "UI/SettingsHost.hpp"
 #include "UI/ChatPanel.hpp"
 #include "UI/HexColor.hpp"
+#include "UI/SettingsFlowCoordinator.hpp"
+#include "Chat/ChatFilter.hpp"
 #include "Chat/ChatManager.hpp"
 #include "Requests/SongRequestManager.hpp"
 #include "Config.hpp"
@@ -8,6 +10,7 @@
 #include "bsml/shared/BSML/MainThreadScheduler.hpp"
 #include "bsml/shared/BSML/Components/Settings/ColorSetting.hpp"
 #include "bsml/shared/BSML/Components/Settings/SliderSetting.hpp"
+#include "bsml/shared/BSML/Components/Settings/ToggleSetting.hpp"
 
 #include "UnityEngine/GameObject.hpp"
 
@@ -69,6 +72,23 @@ namespace {
         GetConfig().*field = value;
         ScheduleSave();
         ChatPanel::ApplyConfig();
+    }
+
+    // Request limits; the request threads read them as they need them.
+    template <typename T, typename V>
+    void SetLimit(T Config::*field, V value) {
+        GetConfig().*field = value;
+        ScheduleSave();
+    }
+
+    // Also hides what's already in the feed that now matches.
+    template <typename T>
+    void SetFilter(T Config::*field, T value) {
+        auto& config = GetConfig();
+        config.*field = std::move(value);
+        Chat::SetFilters(config.blockedUsers, config.blockedWords, config.hideCommands);
+        Chat::ChatManager::Instance().ApplyFilters();
+        SaveConfig();
     }
 }
 
@@ -133,6 +153,22 @@ namespace StandaloneStreamChat {
             color->ReceiveValue();
     }
 
+    void SettingsHost::openPanel() { SettingsFlowCoordinator::OpenPage(false); }
+    void SettingsHost::openPositions() { SettingsFlowCoordinator::OpenPage(true); }
+
+    bool SettingsHost::get_separatePlayingPosition() { return GetConfig().separatePlayingPosition; }
+    void SettingsHost::set_separatePlayingPosition(bool value) {
+        GetConfig().separatePlayingPosition = value;
+        SaveConfig();
+    }
+    void SettingsHost::captureMenuPosition() { ChatPanel::CapturePosition(false); }
+    void SettingsHost::capturePlayingPosition() {
+        ChatPanel::CapturePosition(true);
+        // That turned Separate Playing Position on.
+        for (auto toggle : get_gameObject()->GetComponentsInChildren<BSML::ToggleSetting*>(true))
+            toggle->ReceiveValue();
+    }
+
     bool SettingsHost::get_enableSongRequests() { return GetConfig().enableSongRequests; }
     void SettingsHost::set_enableSongRequests(bool value) {
         GetConfig().enableSongRequests = value;
@@ -150,10 +186,39 @@ namespace StandaloneStreamChat {
         Requests::SongRequestManager::Instance().PersistSettingChanged();
     }
     int SettingsHost::get_requestCooldown() { return GetConfig().perUserCooldownSeconds; }
-    void SettingsHost::set_requestCooldown(int value) {
-        GetConfig().perUserCooldownSeconds = value;
-        ScheduleSave();
+    void SettingsHost::set_requestCooldown(int value) { SetLimit(&Config::perUserCooldownSeconds, value); }
+    int SettingsHost::get_maxQueueSize() { return GetConfig().maxQueueSize; }
+    void SettingsHost::set_maxQueueSize(int value) { SetLimit(&Config::maxQueueSize, value); }
+    int SettingsHost::get_maxPerViewer() { return GetConfig().maxRequestsPerUser; }
+    void SettingsHost::set_maxPerViewer(int value) { SetLimit(&Config::maxRequestsPerUser, value); }
+    int SettingsHost::get_minRating() { return GetConfig().minRatingPercent; }
+    void SettingsHost::set_minRating(int value) { SetLimit(&Config::minRatingPercent, value); }
+    int SettingsHost::get_maxLength() { return GetConfig().maxLengthMinutes; }
+    void SettingsHost::set_maxLength(int value) { SetLimit(&Config::maxLengthMinutes, value); }
+    float SettingsHost::get_maxNps() { return GetConfig().maxNps; }
+    void SettingsHost::set_maxNps(float value) { SetLimit(&Config::maxNps, value); }
+
+    // The list setting finds the current choice among its options, so hand back the option object itself.
+    StringW SettingsHost::get_whoCanRequest() {
+        auto who = static_cast<size_t>(std::clamp(GetConfig().whoCanRequest.Get(), 0, static_cast<int>(WhoCanRequestNames.size()) - 1));
+        if (whoCanRequestOptions && who < whoCanRequestOptions.size())
+            return StringW(reinterpret_cast<Il2CppString*>(whoCanRequestOptions[who]));
+        return StringW(WhoCanRequestNames[who]);
     }
+    void SettingsHost::set_whoCanRequest(StringW value) {
+        auto found = std::find(WhoCanRequestNames.begin(), WhoCanRequestNames.end(), static_cast<std::string>(value));
+        if (found == WhoCanRequestNames.end())
+            return;
+        GetConfig().whoCanRequest = static_cast<int>(found - WhoCanRequestNames.begin());
+        SaveConfig();
+    }
+
+    StringW SettingsHost::get_blockedUsers() { return GetConfig().blockedUsers; }
+    void SettingsHost::set_blockedUsers(StringW value) { SetFilter(&Config::blockedUsers, static_cast<std::string>(value)); }
+    StringW SettingsHost::get_blockedWords() { return GetConfig().blockedWords; }
+    void SettingsHost::set_blockedWords(StringW value) { SetFilter(&Config::blockedWords, static_cast<std::string>(value)); }
+    bool SettingsHost::get_hideCommands() { return GetConfig().hideCommands; }
+    void SettingsHost::set_hideCommands(bool value) { SetFilter(&Config::hideCommands, value); }
 
     bool SettingsHost::get_showWindow() { return GetConfig().showPanel; }
     void SettingsHost::set_showWindow(bool value) { SetAppearance(&Config::showPanel, value); }

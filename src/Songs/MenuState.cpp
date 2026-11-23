@@ -17,8 +17,7 @@ namespace StandaloneStreamChat::Songs::MenuState {
     namespace {
         // The menu's flow coordinator when the menu is live and settled.
         GlobalNamespace::MainFlowCoordinator* SettledMenu() {
-            // GameCore is only loaded while a song (or multiplayer match) plays.
-            if (UnityEngine::SceneManagement::SceneManager::GetSceneByName("GameCore").get_isLoaded())
+            if (Playing())
                 return nullptr;
             auto main = BSML::Helpers::GetMainFlowCoordinator();
             if (!main || main->get_isInTransition() || !main->get_gameObject()->get_activeInHierarchy())
@@ -28,6 +27,9 @@ namespace StandaloneStreamChat::Songs::MenuState {
 
         bool Shown(UnityW<GlobalNamespace::ResultsViewController> results) { return results && results->get_isActivated(); }
     }
+
+    // GameCore is only loaded while a song (or multiplayer match) plays.
+    bool Playing() { return UnityEngine::SceneManagement::SceneManager::GetSceneByName("GameCore").get_isLoaded(); }
 
     bool InMenu() { return SettledMenu() != nullptr; }
 

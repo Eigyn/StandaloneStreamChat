@@ -1,4 +1,5 @@
 #include "Chat/ChatManager.hpp"
+#include "Chat/ChatFilter.hpp"
 #include "Chat/KickChatClient.hpp"
 #include "Chat/RecentIds.hpp"
 #include "Chat/MessageHistory.hpp"
@@ -149,10 +150,15 @@ namespace StandaloneStreamChat::Chat {
         if (emote != message.segments.end() && emoteTraces.fetch_sub(1) > 0)
             INFO("Chat: message from {} has emote {} ({})", message.author, emote->emoteKey, emote->text);
 
-        // A "!bsr" also goes to the request queue, after it is in the feed so
-        // the reply shows below it, and outside our lock.
+        bool viewerMessage = message.event == ChatEvent::Message && message.platform != ChatPlatform::System;
+        auto filter = viewerMessage ? CheckFilters(message) : FilterResult::Show;
+        if (filter == FilterResult::Block)
+            return;
+
+        // A "!bsr" or "!wrongsong" also goes to the request queue, after it is
+        // in the feed so the reply shows below it, and outside our lock.
         std::optional<ChatMessage> command;
-        if (message.event == ChatEvent::Message && !message.isNotice && message.platform != ChatPlatform::System && Requests::IsBsrCommand(message.text))
+        if (viewerMessage && !message.isNotice && (Requests::IsBsrCommand(message.text) || Requests::IsWrongSongCommand(message.text)))
             command = message;
         bool moderation = message.event != ChatEvent::Message && message.event != ChatEvent::ChannelIdentity;
         bool revokeRequests = message.event == ChatEvent::RemoveMessage || message.event == ChatEvent::RemoveUser;
@@ -176,7 +182,7 @@ namespace StandaloneStreamChat::Chat {
                     else
                         INFO("Chat moderation: removed {} messages from platform {}", before - _messages.size(), slot);
                 }
-            } else {
+            } else if (filter == FilterResult::Show) {
                 PushLocked(std::move(message));
             }
         }
@@ -194,6 +200,15 @@ namespace StandaloneStreamChat::Chat {
         message.text = std::move(text);
         std::lock_guard lock(_lock);
         PushLocked(std::move(message));
+    }
+
+    void ChatManager::ApplyFilters() {
+        std::lock_guard lock(_lock);
+        auto removed = std::erase_if(_messages, [](ChatMessage const& message) {
+            return message.platform != ChatPlatform::System && CheckFilters(message) != FilterResult::Show;
+        });
+        if (removed > 0)
+            _version++;
     }
 
     void ChatManager::PushLocked(ChatMessage message) {

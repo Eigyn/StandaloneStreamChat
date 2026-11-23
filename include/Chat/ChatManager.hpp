@@ -33,6 +33,9 @@ namespace StandaloneStreamChat::Chat {
         /// Posts a system line; `always` shows it even with Show System Messages off.
         void AddSystemMessage(std::string text, bool always = false);
 
+        /// Drops shown messages that the filters (just changed) now hide.
+        void ApplyFilters();
+
         /// The platform's live viewer count, or -1 if unknown, offline or not
         /// connected. Main thread.
         int Viewers(ChatPlatform platform) const;

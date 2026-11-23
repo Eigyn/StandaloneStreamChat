@@ -2,7 +2,10 @@
 
 #include "HMUI/ViewController.hpp"
 
+#include <string_view>
+
 namespace StandaloneStreamChat::UI {
-    /// Builds the Mods > StandaloneStreamChat settings screen.
-    void SettingsDidActivate(HMUI::ViewController* self, bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling);
+    /// Builds one settings screen from `bsml` on `view`, with a SettingsHost
+    /// as its binding target. Once, on the view's first activation.
+    void BuildSettingsView(HMUI::ViewController* view, std::string_view bsml);
 }

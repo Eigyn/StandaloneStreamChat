@@ -41,13 +41,17 @@ namespace StandaloneStreamChat::Requests {
             lower.erase(0, std::min(lower.find_first_not_of('0'), lower.size()));
             return IsValidKey(lower) ? lower : std::string();
         }
+
+        // A word boundary after the command, so "!bsrfoo" isn't a request.
+        bool StartsWithCommand(std::string_view text, std::string_view command) {
+            text = Trim(text);
+            return StartsWithIgnoreCase(text, command) && (text.size() == command.size() || IsSpace(text[command.size()]));
+        }
     }
 
-    bool IsBsrCommand(std::string_view text) {
-        text = Trim(text);
-        // A word boundary, so "!bsrfoo" isn't a request.
-        return StartsWithIgnoreCase(text, Command) && (text.size() == Command.size() || IsSpace(text[Command.size()]));
-    }
+    bool IsBsrCommand(std::string_view text) { return StartsWithCommand(text, Command); }
+
+    bool IsWrongSongCommand(std::string_view text) { return StartsWithCommand(text, "!wrongsong") || StartsWithCommand(text, "!oops"); }
 
     BsrCommand ParseBsr(std::string_view text) {
         if (!IsBsrCommand(text))
