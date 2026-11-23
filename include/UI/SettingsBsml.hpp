@@ -5,6 +5,9 @@
 namespace StandaloneStreamChat::UI {
     // The settings screen: tabs, labels, ranges and hints.
     // Values bind to SettingsHost properties (C++ names, so camelCase ids).
+    // Below the top level, sizes are fixed (size-delta-y, pref-width): a
+    // horizontal-fit/vertical-fit inside another layout settled on the wrong
+    // height, and re-laid itself out differently once the pointer hovered it.
     // A modifier-container doesn't size its children, so a plain <text> in
     // one needs size-delta-y; otherwise it keeps TMP's default 50-unit height.
     inline constexpr std::string_view SettingsBsml = R"BSML(
@@ -55,24 +58,24 @@ namespace StandaloneStreamChat::UI {
 
   <tab tags='tabs' tab-name='Filters'>
     <vertical child-control-height='false' child-expand-width='false' child-align='UpperCenter' spacing='1' pad-top='1'>
-      <horizontal horizontal-fit='PreferredSize' vertical-fit='PreferredSize' spacing='4' child-align='UpperCenter'>
-        <vertical child-control-height='false' spacing='2'>
-          <vertical bg='round-rect-panel' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter' horizontal-fit='PreferredSize' vertical-fit='PreferredSize'>
+      <horizontal spacing='4' size-delta-y='52' child-align='UpperCenter'>
+        <vertical child-control-height='false' spacing='2' pref-width='64'>
+          <vertical bg='round-rect-panel' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter' size-delta-y='40'>
             <text text='Users' font-size='4' align='Center' word-wrapping='false' pref-width='60' size-delta-y='5'/>
             <list id='userFilterList' select-cell='userSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true'/>
           </vertical>
-          <horizontal bg='round-rect-panel' pad='1' spacing='1' horizontal-fit='PreferredSize' vertical-fit='PreferredSize'>
+          <horizontal bg='round-rect-panel' pad='1' spacing='1' child-align='MiddleCenter' size-delta-y='10'>
             <button text='Add' on-click='addUser' pref-width='18' pref-height='8' hover-hint='Type a name to add to the list.'/>
             <button id='userModeButton' text='Blocklist' on-click='toggleUserMode' pref-width='24' pref-height='8' hover-hint='Blocklist: hide these users, and ignore their requests. Allowlist: show only these users (an empty Allowlist shows everyone; requests still work).'/>
             <button text='Remove' on-click='removeUser' pref-width='18' pref-height='8' hover-hint='Remove the picked name, or all of them.'/>
           </horizontal>
         </vertical>
-        <vertical child-control-height='false' spacing='2'>
-          <vertical bg='round-rect-panel' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter' horizontal-fit='PreferredSize' vertical-fit='PreferredSize'>
+        <vertical child-control-height='false' spacing='2' pref-width='64'>
+          <vertical bg='round-rect-panel' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter' size-delta-y='40'>
             <text text='Words' font-size='4' align='Center' word-wrapping='false' pref-width='60' size-delta-y='5'/>
             <list id='wordFilterList' select-cell='wordSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true'/>
           </vertical>
-          <horizontal bg='round-rect-panel' pad='1' spacing='1' horizontal-fit='PreferredSize' vertical-fit='PreferredSize'>
+          <horizontal bg='round-rect-panel' pad='1' spacing='1' child-align='MiddleCenter' size-delta-y='10'>
             <button text='Add' on-click='addWord' pref-width='18' pref-height='8' hover-hint='Type a word or phrase to add to the list. Whole words only, any case.'/>
             <button id='wordModeButton' text='Blocklist' on-click='toggleWordMode' pref-width='24' pref-height='8' hover-hint='Blocklist: hide messages with these words, and ignore their requests. Allowlist: show only messages with one of them (an empty Allowlist shows everything; requests still work).'/>
             <button text='Remove' on-click='removeWord' pref-width='18' pref-height='8' hover-hint='Remove the picked word, or all of them.'/>
