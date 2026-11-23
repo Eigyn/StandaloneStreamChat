@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace StandaloneStreamChat {
     /// A setting the chat and request threads also read. The settings screen
@@ -108,16 +109,21 @@ namespace StandaloneStreamChat {
         // Keep the queue across game restarts.
         Shared<bool> persistRequestQueue = true;
 
-        // Filters, as typed: comma-separated names and words or phrases. The
-        // chat threads read the parsed copy in Chat::SetFilters, not these.
-        std::string blockedUsers;
-        std::string blockedWords;
+        // Filters: names and words or phrases, lowercase. Each list is a
+        // Blocklist (hide what's on it) or an Allowlist (show only what's on
+        // it). The chat threads read the copy in Chat::SetFilters, not these.
+        std::vector<std::string> filterUsers;
+        bool filterUsersAllow = false;
+        std::vector<std::string> filterWords;
+        bool filterWordsAllow = false;
         bool hideCommands = false;  // keep "!" messages out of the feed
     };
 
     Config& GetConfig();
     void LoadConfig();
     void SaveConfig();
+    /// Hands the config's filters to the chat threads (Chat::SetFilters).
+    void ApplyFilterConfig();
 
     /// The Configs folder holding the settings and the saved request queue.
     std::filesystem::path ConfigDirectory();

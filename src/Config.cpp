@@ -7,6 +7,7 @@
 
 #include "scotland2/shared/modloader.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -39,6 +40,21 @@ namespace StandaloneStreamChat {
             auto it = obj.FindMember(key);
             if (it != obj.MemberEnd() && it->value.IsInt())
                 out = it->value.GetInt();
+        }
+
+        // Lowercase and trimmed, as the Filters tab adds them; anything else in the file is fixed up.
+        void Read(rapidjson::Value const& obj, char const* key, std::vector<std::string>& out) {
+            auto it = obj.FindMember(key);
+            if (it == obj.MemberEnd() || !it->value.IsArray())
+                return;
+            out.clear();
+            for (auto const& item : it->value.GetArray()) {
+                if (!item.IsString())
+                    continue;
+                auto entry = Chat::NormalizeFilterEntry({item.GetString(), item.GetStringLength()});
+                if (!entry.empty() && std::find(out.begin(), out.end(), entry) == out.end())
+                    out.push_back(std::move(entry));
+            }
         }
 
         template <typename T>
@@ -76,6 +92,10 @@ namespace StandaloneStreamChat {
     }
 
     Config& GetConfig() { return config; }
+
+    void ApplyFilterConfig() {
+        Chat::SetFilters({config.filterUsers, config.filterUsersAllow}, {config.filterWords, config.filterWordsAllow}, config.hideCommands);
+    }
 
     std::filesystem::path ConfigDirectory() { return modloader::get_external_dir() / "Configs"; }
 
@@ -189,10 +209,12 @@ namespace StandaloneStreamChat {
         Read(doc, "MaxLengthMinutes", config.maxLengthMinutes);
         Read(doc, "MaxNps", config.maxNps);
         Read(doc, "PersistRequestQueue", config.persistRequestQueue);
-        Read(doc, "BlockedUsers", config.blockedUsers);
-        Read(doc, "BlockedWords", config.blockedWords);
+        Read(doc, "FilterUsers", config.filterUsers);
+        Read(doc, "FilterUsersAllow", config.filterUsersAllow);
+        Read(doc, "FilterWords", config.filterWords);
+        Read(doc, "FilterWordsAllow", config.filterWordsAllow);
         Read(doc, "HideCommands", config.hideCommands);
-        Chat::SetFilters(config.blockedUsers, config.blockedWords, config.hideCommands);
+        ApplyFilterConfig();
     }
 
     void SaveConfig() {
@@ -244,8 +266,16 @@ namespace StandaloneStreamChat {
         writer.Key("MaxLengthMinutes"); writer.Int(config.maxLengthMinutes);
         writer.Key("MaxNps"); writer.Double(config.maxNps);
         writer.Key("PersistRequestQueue"); writer.Bool(config.persistRequestQueue);
-        writer.Key("BlockedUsers"); writer.String(config.blockedUsers.c_str(), config.blockedUsers.size());
-        writer.Key("BlockedWords"); writer.String(config.blockedWords.c_str(), config.blockedWords.size());
+        auto writeList = [&writer](std::vector<std::string> const& list) {
+            writer.StartArray();
+            for (auto const& item : list)
+                writer.String(item.c_str(), item.size());
+            writer.EndArray();
+        };
+        writer.Key("FilterUsers"); writeList(config.filterUsers);
+        writer.Key("FilterUsersAllow"); writer.Bool(config.filterUsersAllow);
+        writer.Key("FilterWords"); writeList(config.filterWords);
+        writer.Key("FilterWordsAllow"); writer.Bool(config.filterWordsAllow);
         writer.Key("HideCommands"); writer.Bool(config.hideCommands);
         writer.EndObject();
 

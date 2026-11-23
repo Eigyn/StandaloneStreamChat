@@ -7,7 +7,7 @@
 namespace StandaloneStreamChat::Chat {
     namespace {
         std::mutex lock;
-        std::vector<std::string> users, words;
+        FilterList users, words;
         bool hideCommands = false;
 
         std::string Lower(std::string_view text) {
@@ -29,20 +29,11 @@ namespace StandaloneStreamChat::Chat {
 
         // Bytes of UTF-8 characters count as letters, so a word inside a longer non-English word doesn't match.
         bool IsWordChar(char c) { return std::isalnum(static_cast<unsigned char>(c)) || (static_cast<unsigned char>(c) & 0x80); }
+
+        bool Listed(FilterList const& list, auto matches) { return std::any_of(list.entries.begin(), list.entries.end(), matches); }
     }
 
-    std::vector<std::string> ParseFilterList(std::string_view text) {
-        std::vector<std::string> list;
-        while (true) {
-            auto comma = text.find(',');
-            auto item = WithoutAt(Trim(text.substr(0, comma)));
-            if (!item.empty())
-                list.push_back(Lower(item));
-            if (comma == std::string_view::npos)
-                return list;
-            text.remove_prefix(comma + 1);
-        }
-    }
+    std::string NormalizeFilterEntry(std::string_view text) { return Lower(WithoutAt(Trim(text))); }
 
     bool ContainsPhrase(std::string_view text, std::string_view phrase) {
         if (phrase.empty())
@@ -59,9 +50,7 @@ namespace StandaloneStreamChat::Chat {
         return false;
     }
 
-    void SetFilters(std::string_view blockedUsers, std::string_view blockedWords, bool hide) {
-        auto newUsers = ParseFilterList(blockedUsers);
-        auto newWords = ParseFilterList(blockedWords);
+    void SetFilters(FilterList newUsers, FilterList newWords, bool hide) {
         std::lock_guard guard(lock);
         users = std::move(newUsers);
         words = std::move(newWords);
@@ -70,17 +59,20 @@ namespace StandaloneStreamChat::Chat {
 
     FilterResult CheckFilters(ChatMessage const& message) {
         std::lock_guard guard(lock);
-        if (!users.empty()) {
-            // YouTube names can carry an '@', which the list entries drop.
+        bool userListed = false;
+        if (!users.entries.empty()) {
+            // YouTube names can carry an '@', which the entries drop.
             auto author = Lower(WithoutAt(message.author));
             auto login = Lower(message.authorLogin);
-            if (std::any_of(users.begin(), users.end(), [&](auto const& user) { return user == author || user == login; }))
-                return FilterResult::Block;
+            userListed = Listed(users, [&](auto const& user) { return user == author || user == login; });
         }
-        if (std::any_of(words.begin(), words.end(), [&](auto const& word) { return ContainsPhrase(message.text, word); }))
+        bool wordListed = Listed(words, [&](auto const& word) { return ContainsPhrase(message.text, word); });
+        if ((userListed && !users.allow) || (wordListed && !words.allow))
             return FilterResult::Block;
+        if ((users.allow && !users.entries.empty() && !userListed) || (words.allow && !words.entries.empty() && !wordListed))
+            return FilterResult::Hide;
         if (hideCommands && !message.isNotice && Trim(message.text).starts_with('!'))
-            return FilterResult::HideCommand;
+            return FilterResult::Hide;
         return FilterResult::Show;
     }
 }

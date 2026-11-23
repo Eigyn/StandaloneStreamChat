@@ -491,34 +491,46 @@ void RequestLimits() {
 }
 void ChatFilters() {
     using namespace Chat;
-    Check(ParseFilterList(" Bob, @Ann,, Spam Bot ") == std::vector<std::string>{"bob", "ann", "spam bot"}, "filter lists trim, lowercase and drop @");
+    Check(NormalizeFilterEntry("  @Spam Bot ") == "spam bot" && NormalizeFilterEntry(" @ ").empty(), "entries trim, lowercase and drop @");
     Check(ContainsPhrase("You ARE a Spammer!", "spammer") && ContainsPhrase("buy  followers", "buy  followers") && !ContainsPhrase("classic", "ass") &&
               !ContainsPhrase("caf\xc3\xa9", "caf") && ContainsPhrase("so :badEmote: wow", ":bademote:"),
-          "blocked words match whole words in any case");
-    SetFilters("Nightbot, @YtUser", "badword", true);
+          "words match whole words in any case");
+    SetFilters({{"nightbot", "ytuser"}, false}, {{"badword"}, false}, true);
     ChatMessage message;
     message.platform = ChatPlatform::Twitch;
     message.author = "NightBot";
     message.text = "hello";
-    Check(CheckFilters(message) == FilterResult::Block, "blocked by display name");
+    Check(CheckFilters(message) == FilterResult::Block, "blocklisted by display name");
     message.author = "Night Bot";
     message.authorLogin = "nightbot";
-    Check(CheckFilters(message) == FilterResult::Block, "blocked by login");
+    Check(CheckFilters(message) == FilterResult::Block, "blocklisted by login");
     message.authorLogin.clear();
     message.author = "@ytuser";
     Check(CheckFilters(message) == FilterResult::Block, "a YouTube @name matches without the @");
     message.author = "Viewer";
     message.text = "what a BADWORD";
-    Check(CheckFilters(message) == FilterResult::Block, "blocked by word");
+    Check(CheckFilters(message) == FilterResult::Block, "blocklisted word");
     message.text = "  !bsr 1a2b";
-    Check(CheckFilters(message) == FilterResult::HideCommand, "commands are hidden, not blocked");
+    Check(CheckFilters(message) == FilterResult::Hide, "commands are hidden, not blocked");
     message.isNotice = true;
     message.text = "!subscribed";
     Check(CheckFilters(message) == FilterResult::Show, "notices are not commands");
     message.isNotice = false;
     message.text = "hello";
     Check(CheckFilters(message) == FilterResult::Show, "everything else shows");
-    SetFilters("", "", false);
+
+    SetFilters({{"friend"}, true}, {{"hype"}, true}, false);
+    message.author = "Friend";
+    message.text = "HYPE train";
+    Check(CheckFilters(message) == FilterResult::Show, "on both Allowlists");
+    message.text = "hello";
+    Check(CheckFilters(message) == FilterResult::Hide, "off the word Allowlist: hidden, requests still see it");
+    message.author = "Stranger";
+    message.text = "hype";
+    Check(CheckFilters(message) == FilterResult::Hide, "off the user Allowlist: hidden");
+    SetFilters({{}, true}, {{}, true}, false);
+    Check(CheckFilters(message) == FilterResult::Show, "an empty Allowlist lets everything through");
+    SetFilters({}, {}, false);
     message.text = "!bsr 1a2b";
     Check(CheckFilters(message) == FilterResult::Show, "filters off");
     std::cout << "PASS chat filters\n";

@@ -3,7 +3,14 @@
 #include "custom-types/shared/macros.hpp"
 #include "bsml/shared/macros.hpp"
 
+#include "bsml/shared/BSML/Components/CustomListTableData.hpp"
+#include "bsml/shared/BSML/Components/Keyboard/ModalKeyboard.hpp"
+#include "bsml/shared/BSML/Components/ModalView.hpp"
+
+#include "HMUI/TableView.hpp"
 #include "System/Collections/Generic/List_1.hpp"
+#include "TMPro/TextMeshProUGUI.hpp"
+#include "UnityEngine/UI/Button.hpp"
 #include "UnityEngine/Color.hpp"
 #include "UnityEngine/MonoBehaviour.hpp"
 
@@ -57,9 +64,30 @@ DECLARE_CLASS_CODEGEN(StandaloneStreamChat, SettingsHost, UnityEngine::MonoBehav
     DECLARE_BSML_PROPERTY(int, maxLength);
     DECLARE_BSML_PROPERTY(float, maxNps);
 
-    // Filters
-    DECLARE_BSML_PROPERTY(StringW, blockedUsers);
-    DECLARE_BSML_PROPERTY(StringW, blockedWords);
+    // Filters: a list window and a button bar for users and for words. One
+    // keyboard and one Remove dialog serve both; _filterWords says which.
+    DECLARE_INSTANCE_FIELD(BSML::CustomListTableData*, userFilterList);
+    DECLARE_INSTANCE_FIELD(BSML::CustomListTableData*, wordFilterList);
+    DECLARE_INSTANCE_FIELD(UnityEngine::UI::Button*, userModeButton);
+    DECLARE_INSTANCE_FIELD(UnityEngine::UI::Button*, wordModeButton);
+    DECLARE_INSTANCE_FIELD(BSML::ModalKeyboard*, filterKeyboard);
+    DECLARE_INSTANCE_FIELD(BSML::ModalView*, removeModal);
+    DECLARE_INSTANCE_FIELD(TMPro::TextMeshProUGUI*, removeText);
+    DECLARE_INSTANCE_FIELD(UnityEngine::UI::Button*, removeSelectedButton);
+    DECLARE_INSTANCE_FIELD(bool, _filterWords);
+    DECLARE_INSTANCE_FIELD(int, _selectedUser);  // -1 = none
+    DECLARE_INSTANCE_FIELD(int, _selectedWord);
+    DECLARE_INSTANCE_METHOD(void, userSelected, HMUI::TableView* table, int index);
+    DECLARE_INSTANCE_METHOD(void, wordSelected, HMUI::TableView* table, int index);
+    DECLARE_INSTANCE_METHOD(void, addUser);
+    DECLARE_INSTANCE_METHOD(void, addWord);
+    DECLARE_INSTANCE_METHOD(void, toggleUserMode);
+    DECLARE_INSTANCE_METHOD(void, toggleWordMode);
+    DECLARE_INSTANCE_METHOD(void, removeUser);
+    DECLARE_INSTANCE_METHOD(void, removeWord);
+    DECLARE_INSTANCE_METHOD(void, removeSelected);
+    DECLARE_INSTANCE_METHOD(void, removeAll);
+    DECLARE_INSTANCE_METHOD(void, cancelRemove);
     DECLARE_BSML_PROPERTY(bool, hideCommands);
 
     // General
@@ -74,4 +102,13 @@ DECLARE_CLASS_CODEGEN(StandaloneStreamChat, SettingsHost, UnityEngine::MonoBehav
 
    public:
     static constexpr std::array<std::string_view, 3> WhoCanRequestNames{"Everyone", "Mods", "Broadcaster"};
+    /// After parsing: fills the filter windows. Nothing on views without them.
+    void SetUpFilters();
+
+   private:
+    void RefreshFilterWindow(bool words);
+    void OpenKeyboard(bool words);
+    void AddFilterEntry(StringW text);
+    void ToggleFilterMode(bool words);
+    void OpenRemove(bool words);
 };

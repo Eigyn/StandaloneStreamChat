@@ -105,6 +105,7 @@ namespace StandaloneStreamChat::UI {
         for (auto name : SettingsHost::WhoCanRequestNames)
             host->whoCanRequestOptions.push_back(static_cast<System::Object*>(StringW(name).convert()));
         BSML::parse_and_construct(bsml, view->get_transform(), host);
+        host->SetUpFilters();
         for (auto setting : view->GetComponentsInChildren<BSML::StringSetting*>(true))
             FormatChannelInput(setting);
         for (auto setting : view->GetComponentsInChildren<BSML::ColorSetting*>(true))

@@ -81,12 +81,12 @@ namespace {
         ScheduleSave();
     }
 
-    // Also hides what's already in the feed that now matches.
-    template <typename T>
-    void SetFilter(T Config::*field, T value) {
-        auto& config = GetConfig();
-        config.*field = std::move(value);
-        Chat::SetFilters(config.blockedUsers, config.blockedWords, config.hideCommands);
+    std::vector<std::string>& FilterEntries(bool words) { return words ? GetConfig().filterWords : GetConfig().filterUsers; }
+    bool& FilterAllows(bool words) { return words ? GetConfig().filterWordsAllow : GetConfig().filterUsersAllow; }
+
+    // Also takes what's already in the feed out if it's now filtered.
+    void FiltersChanged() {
+        ApplyFilterConfig();
         Chat::ChatManager::Instance().ApplyFilters();
         SaveConfig();
     }
@@ -213,12 +213,110 @@ namespace StandaloneStreamChat {
         SaveConfig();
     }
 
-    StringW SettingsHost::get_blockedUsers() { return GetConfig().blockedUsers; }
-    void SettingsHost::set_blockedUsers(StringW value) { SetFilter(&Config::blockedUsers, static_cast<std::string>(value)); }
-    StringW SettingsHost::get_blockedWords() { return GetConfig().blockedWords; }
-    void SettingsHost::set_blockedWords(StringW value) { SetFilter(&Config::blockedWords, static_cast<std::string>(value)); }
     bool SettingsHost::get_hideCommands() { return GetConfig().hideCommands; }
-    void SettingsHost::set_hideCommands(bool value) { SetFilter(&Config::hideCommands, value); }
+    void SettingsHost::set_hideCommands(bool value) {
+        GetConfig().hideCommands = value;
+        FiltersChanged();
+    }
+
+    void SettingsHost::SetUpFilters() {
+        if (!userFilterList || !wordFilterList)
+            return;
+        if (filterKeyboard) {
+            UnityW<SettingsHost> self = this;
+            filterKeyboard->onEnter = [self](StringW text) mutable {
+                if (self)
+                    self->AddFilterEntry(text);
+            };
+        }
+        RefreshFilterWindow(false);
+        RefreshFilterWindow(true);
+    }
+
+    void SettingsHost::RefreshFilterWindow(bool words) {
+        auto list = words ? wordFilterList : userFilterList;
+        if (!list || !list->tableView)
+            return;
+        auto data = list->data;
+        data.clear();
+        for (auto const& entry : FilterEntries(words))
+            data.push_back(BSML::CustomCellInfo::construct(StringW(entry)));
+        list->tableView->ReloadData();
+        list->tableView->ClearSelection();
+        (words ? _selectedWord : _selectedUser) = -1;
+        if (auto button = words ? wordModeButton : userModeButton) {
+            if (auto label = button->GetComponentInChildren<TMPro::TextMeshProUGUI*>())
+                label->set_text(FilterAllows(words) ? "Allowlist" : "Blocklist");
+        }
+    }
+
+    void SettingsHost::userSelected(HMUI::TableView*, int index) { _selectedUser = index; }
+    void SettingsHost::wordSelected(HMUI::TableView*, int index) { _selectedWord = index; }
+
+    void SettingsHost::addUser() { OpenKeyboard(false); }
+    void SettingsHost::addWord() { OpenKeyboard(true); }
+    void SettingsHost::OpenKeyboard(bool words) {
+        _filterWords = words;
+        if (filterKeyboard && filterKeyboard->modalView)
+            filterKeyboard->modalView->Show();
+    }
+
+    // One entry per Add, commas and all.
+    void SettingsHost::AddFilterEntry(StringW text) {
+        auto entry = Chat::NormalizeFilterEntry(static_cast<std::string>(text));
+        auto& entries = FilterEntries(_filterWords);
+        if (entry.empty() || std::find(entries.begin(), entries.end(), entry) != entries.end())
+            return;
+        entries.push_back(std::move(entry));
+        FiltersChanged();
+        RefreshFilterWindow(_filterWords);
+    }
+
+    void SettingsHost::toggleUserMode() { ToggleFilterMode(false); }
+    void SettingsHost::toggleWordMode() { ToggleFilterMode(true); }
+    void SettingsHost::ToggleFilterMode(bool words) {
+        FilterAllows(words) = !FilterAllows(words);
+        FiltersChanged();
+        RefreshFilterWindow(words);
+    }
+
+    void SettingsHost::removeUser() { OpenRemove(false); }
+    void SettingsHost::removeWord() { OpenRemove(true); }
+    void SettingsHost::OpenRemove(bool words) {
+        if (!removeModal)
+            return;
+        _filterWords = words;
+        auto const& entries = FilterEntries(words);
+        int selected = words ? _selectedWord : _selectedUser;
+        bool picked = selected >= 0 && static_cast<size_t>(selected) < entries.size();
+        if (removeText)
+            removeText->set_text(picked ? "Remove \"" + entries[selected] + "\"?"
+                                 : entries.empty() ? std::string("This list is empty.")
+                                                   : std::string("Pick an entry in the list first, or remove them all."));
+        if (removeSelectedButton)
+            removeSelectedButton->set_interactable(picked);
+        removeModal->Show();
+    }
+
+    void SettingsHost::removeSelected() {
+        auto& entries = FilterEntries(_filterWords);
+        int selected = _filterWords ? _selectedWord : _selectedUser;
+        if (selected >= 0 && static_cast<size_t>(selected) < entries.size()) {
+            entries.erase(entries.begin() + selected);
+            FiltersChanged();
+            RefreshFilterWindow(_filterWords);
+        }
+        removeModal->Hide();
+    }
+
+    void SettingsHost::removeAll() {
+        FilterEntries(_filterWords).clear();
+        FiltersChanged();
+        RefreshFilterWindow(_filterWords);
+        removeModal->Hide();
+    }
+
+    void SettingsHost::cancelRemove() { removeModal->Hide(); }
 
     bool SettingsHost::get_showWindow() { return GetConfig().showPanel; }
     void SettingsHost::set_showWindow(bool value) { SetAppearance(&Config::showPanel, value); }

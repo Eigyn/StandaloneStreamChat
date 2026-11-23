@@ -54,11 +54,42 @@ namespace StandaloneStreamChat::UI {
   </tab>
 
   <tab tags='tabs' tab-name='Filters'>
-    <modifier-container child-expand-width='true' horizontal-fit='PreferredSize' pad-top='2'>
-      <string-setting text='Blocked Users' value='blockedUsers' apply-on-change='true' hover-hint='Names to hide, separated by commas, for example Nightbot, StreamElements. Their requests are ignored too.'/>
-      <string-setting text='Blocked Words' value='blockedWords' apply-on-change='true' hover-hint='Words or phrases, separated by commas. Messages with one are hidden and their requests ignored. Whole words only, any case.'/>
-      <toggle-setting text='Hide Commands' value='hideCommands' apply-on-change='true' hover-hint='Keep messages that start with ! out of the chat. !bsr and !wrongsong still work.'/>
-    </modifier-container>
+    <vertical child-control-height='false' child-expand-width='false' child-align='UpperCenter' spacing='1' pad-top='1'>
+      <horizontal horizontal-fit='PreferredSize' vertical-fit='PreferredSize' spacing='4' child-align='UpperCenter'>
+        <vertical child-control-height='false' spacing='2'>
+          <vertical bg='round-rect-panel' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter' horizontal-fit='PreferredSize' vertical-fit='PreferredSize'>
+            <text text='Users' font-size='4' align='Center' word-wrapping='false' pref-width='60' size-delta-y='5'/>
+            <list id='userFilterList' select-cell='userSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true'/>
+          </vertical>
+          <horizontal bg='round-rect-panel' pad='1' spacing='1' horizontal-fit='PreferredSize' vertical-fit='PreferredSize'>
+            <button text='Add' on-click='addUser' pref-width='18' pref-height='8' hover-hint='Type a name to add to the list.'/>
+            <button id='userModeButton' text='Blocklist' on-click='toggleUserMode' pref-width='24' pref-height='8' hover-hint='Blocklist: hide these users, and ignore their requests. Allowlist: show only these users (an empty Allowlist shows everyone; requests still work).'/>
+            <button text='Remove' on-click='removeUser' pref-width='18' pref-height='8' hover-hint='Remove the picked name, or all of them.'/>
+          </horizontal>
+        </vertical>
+        <vertical child-control-height='false' spacing='2'>
+          <vertical bg='round-rect-panel' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter' horizontal-fit='PreferredSize' vertical-fit='PreferredSize'>
+            <text text='Words' font-size='4' align='Center' word-wrapping='false' pref-width='60' size-delta-y='5'/>
+            <list id='wordFilterList' select-cell='wordSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true'/>
+          </vertical>
+          <horizontal bg='round-rect-panel' pad='1' spacing='1' horizontal-fit='PreferredSize' vertical-fit='PreferredSize'>
+            <button text='Add' on-click='addWord' pref-width='18' pref-height='8' hover-hint='Type a word or phrase to add to the list. Whole words only, any case.'/>
+            <button id='wordModeButton' text='Blocklist' on-click='toggleWordMode' pref-width='24' pref-height='8' hover-hint='Blocklist: hide messages with these words, and ignore their requests. Allowlist: show only messages with one of them (an empty Allowlist shows everything; requests still work).'/>
+            <button text='Remove' on-click='removeWord' pref-width='18' pref-height='8' hover-hint='Remove the picked word, or all of them.'/>
+          </horizontal>
+        </vertical>
+      </horizontal>
+      <toggle-setting text='Hide Commands' pref-width='64' value='hideCommands' apply-on-change='true' hover-hint='Keep messages that start with ! out of the chat. !bsr and !wrongsong still work.'/>
+    </vertical>
+    <modal-keyboard id='filterKeyboard' clear-on-open='true'/>
+    <modal id='removeModal' click-off-closes='true' move-to-center='true' size-delta-x='60' size-delta-y='42'>
+      <vertical pad='3' spacing='1' child-control-height='false' child-align='MiddleCenter'>
+        <text id='removeText' text='Remove?' font-size='3.4' align='Center' word-wrapping='true' rich-text='false' pref-width='54' size-delta-y='10'/>
+        <button id='removeSelectedButton' text='Remove' on-click='removeSelected' pref-width='40' pref-height='7'/>
+        <button text='Remove All' on-click='removeAll' pref-width='40' pref-height='7'/>
+        <button text='Cancel' on-click='cancelRemove' pref-width='40' pref-height='7'/>
+      </vertical>
+    </modal>
   </tab>
 
   <tab tags='tabs' tab-name='General'>
@@ -97,13 +128,21 @@ namespace StandaloneStreamChat::UI {
 </horizontal>
 )BSML";
 
-    // The Positions page, from the Appearance tab.
+    // The Positions page, from the Appearance tab. A column as wide as the
+    // others: a long wrapped text would make the page as wide as its one line.
     inline constexpr std::string_view PositionsBsml = R"BSML(
-<vertical horizontal-fit='PreferredSize' child-control-height='false' child-align='UpperCenter' spacing='1' pad-top='2'>
-  <text text='Drag the chat panel to where you want it, then capture it for the menus or for songs. While this page is open, dragging alone saves nothing, and the panel goes back to its menu position when you leave. Unlock the panel first (padlock button) to drag it.' font-size='3.2' align='Center' word-wrapping='true' pref-width='110' size-delta-y='14'/>
-  <button text='Capture Menu Position' on-click='captureMenuPosition' pref-width='64' pref-height='8' hover-hint='Save where the panel is now as its place in the menus.'/>
-  <button text='Capture Playing Position' on-click='capturePlayingPosition' pref-width='64' pref-height='8' hover-hint='Save where the panel is now as its place during songs, and turn Separate Playing Position on.'/>
-  <toggle-setting text='Separate Playing Position' pref-width='64' value='separatePlayingPosition' apply-on-change='true' hover-hint='During songs, move the panel to the captured playing position. Off = it stays at the menu position. Dragging it in the pause menu saves the playing position.'/>
-</vertical>
+<horizontal horizontal-fit='PreferredSize' pad-top='2' child-align='UpperCenter'>
+  <vertical child-control-height='false' spacing='1'>
+    <text text='Menus' font-size='3.2' font-color='#8FD3FF' bold='true' all-uppercase='true' align='BottomLeft' word-wrapping='false' pref-width='64' size-delta-y='5'/>
+    <button text='Capture Menu Position' on-click='captureMenuPosition' pref-width='64' pref-height='8' hover-hint='Save where the panel is now as its place in the menus.'/>
+    <text text='Songs' font-size='3.2' font-color='#8FD3FF' bold='true' all-uppercase='true' align='BottomLeft' word-wrapping='false' pref-width='64' size-delta-y='5'/>
+    <toggle-setting text='Separate Playing Position' pref-width='64' value='separatePlayingPosition' apply-on-change='true' hover-hint='During songs, move the panel to the captured playing position. Off = it stays at the menu position. Dragging it in the pause menu saves the playing position.'/>
+    <button text='Capture Playing Position' on-click='capturePlayingPosition' pref-width='64' pref-height='8' hover-hint='Save where the panel is now as its place during songs, and turn Separate Playing Position on.'/>
+    <text text='Drag the panel, then capture it.' font-size='3' font-color='#AAAAAA' align='Center' word-wrapping='false' pref-width='64' size-delta-y='4'/>
+    <text text='Dragging alone saves nothing here.' font-size='3' font-color='#AAAAAA' align='Center' word-wrapping='false' pref-width='64' size-delta-y='4'/>
+    <text text='Leaving puts it back at its menu spot.' font-size='3' font-color='#AAAAAA' align='Center' word-wrapping='false' pref-width='64' size-delta-y='4'/>
+    <text text='Unlock it (padlock) to drag it.' font-size='3' font-color='#AAAAAA' align='Center' word-wrapping='false' pref-width='64' size-delta-y='4'/>
+  </vertical>
+</horizontal>
 )BSML";
 }
