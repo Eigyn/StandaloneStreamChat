@@ -12,7 +12,11 @@
 #include "bsml/shared/BSML/Components/Settings/SliderSetting.hpp"
 #include "bsml/shared/BSML/Components/Settings/ToggleSetting.hpp"
 
+#include "HMUI/ScrollView.hpp"
+#include "HMUI/VerticalScrollIndicator.hpp"
 #include "UnityEngine/GameObject.hpp"
+#include "UnityEngine/RectTransform.hpp"
+#include "UnityEngine/Transform.hpp"
 
 #include <algorithm>
 #include <array>
@@ -32,6 +36,23 @@ namespace {
         value.erase(value.begin(), std::find_if(value.begin(), value.end(), notSpace));
         value.erase(std::find_if(value.rbegin(), value.rend(), notSpace).base(), value.end());
         return value;
+    }
+
+    // BSML hangs the list's scrollbar off the list's right edge. Move it onto
+    // the filter window instead, along its whole right edge, so the list can
+    // stay centered under the window's title.
+    void PinScrollbarToWindow(BSML::CustomListTableData* list) {
+        auto scrollView = list->tableView->get_scrollView();
+        if (!scrollView || !scrollView->_verticalScrollIndicator)
+            return;
+        auto bar = scrollView->_verticalScrollIndicator->get_transform()->get_parent()->GetComponent<UnityEngine::RectTransform*>();
+        if (!bar)
+            return;
+        bar->SetParent(list->get_transform()->get_parent(), false);
+        bar->set_anchorMin({1.0f, 0.0f});
+        bar->set_anchorMax({1.0f, 1.0f});
+        bar->set_offsetMin({-9.0f, 2.0f});
+        bar->set_offsetMax({-1.0f, -2.0f});
     }
 
     // Sliders report every step while dragged; write the file once they settle.
@@ -242,6 +263,8 @@ namespace StandaloneStreamChat {
                     self->AddFilterEntry(text);
             };
         }
+        PinScrollbarToWindow(userFilterList);
+        PinScrollbarToWindow(wordFilterList);
         RefreshFilterWindow(false);
         RefreshFilterWindow(true);
     }
