@@ -6,6 +6,9 @@ namespace StandaloneStreamChat::UI {
     // The settings screen: tabs, labels, ranges and hints.
     // Values bind to SettingsHost properties (C++ names, so camelCase ids).
     // Filters uses background containers with explicitly positioned children.
+    // Reserve their full height on the tab: the outer vertical layout reads
+    // size-delta-y because child-control-height is false. A zero-height tab
+    // puts its top near the middle of the view and its button bars below it.
     // BSML's vertical/horizontal tags and buttons add ContentSizeFitters by
     // default; fixed size-delta/pref-size values alone do not stop those fitters
     // from resizing the controls when the tab opens or a button is hovered.
@@ -57,7 +60,7 @@ namespace StandaloneStreamChat::UI {
     </horizontal>
   </tab>
 
-  <tab tags='tabs' tab-name='Filters'>
+  <tab tags='tabs' tab-name='Filters' size-delta-y='62'>
     <bg bg='round-rect-panel' horizontal-fit='Unconstrained' vertical-fit='Unconstrained' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='-34' anchor-pos-y='-21' size-delta-x='64' size-delta-y='40'>
       <text text='Users' font-size='4' align='Center' word-wrapping='false' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='0' anchor-pos-y='15.5' size-delta-x='60' size-delta-y='5'/>
       <list id='userFilterList' select-cell='userSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='0' anchor-pos-y='-3' size-delta-x='60' size-delta-y='30'/>
