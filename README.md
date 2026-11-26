@@ -1,7 +1,7 @@
 # StandaloneStreamChat
 
 [![License: MIT-0](https://img.shields.io/badge/license-MIT--0-blue?style=flat-square)](LICENSE)
-[![Version: 0.10.0](https://img.shields.io/badge/version-v0.10.0-brightgreen?style=flat-square)](https://github.com/Eigyn/StandaloneStreamChat/releases)
+[![Version: 0.11.0](https://img.shields.io/badge/version-v0.11.0-brightgreen?style=flat-square)](https://github.com/Eigyn/StandaloneStreamChat/releases)
 
 A free Twitch, YouTube, and Kick stream chat mod for Beat Saber on Quest, packaged as
 a `.qmod`. Currently offered for Quest versions 1.40.8 and 1.45.3
