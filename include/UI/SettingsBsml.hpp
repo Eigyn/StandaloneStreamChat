@@ -5,9 +5,10 @@
 namespace StandaloneStreamChat::UI {
     // The settings screen: tabs, labels, ranges and hints.
     // Values bind to SettingsHost properties (C++ names, so camelCase ids).
-    // Below the top level, sizes are fixed (size-delta-y, pref-width): a
-    // horizontal-fit/vertical-fit inside another layout settled on the wrong
-    // height, and re-laid itself out differently once the pointer hovered it.
+    // The Filters windows sit at fixed spots on their tab (anchor-pos, size-delta;
+    // centre pivots, measured from the tab's top centre) with no layout around
+    // them: nested inside layouts, they came out wrong and moved again when
+    // the pointer touched them or the tab was pressed.
     // A modifier-container doesn't size its children, so a plain <text> in
     // one needs size-delta-y; otherwise it keeps TMP's default 50-unit height.
     inline constexpr std::string_view SettingsBsml = R"BSML(
@@ -57,33 +58,25 @@ namespace StandaloneStreamChat::UI {
   </tab>
 
   <tab tags='tabs' tab-name='Filters'>
-    <vertical child-control-height='false' child-expand-width='false' child-align='UpperCenter' spacing='1' pad-top='1'>
-      <horizontal spacing='4' size-delta-y='52' child-align='UpperCenter'>
-        <vertical child-control-height='false' spacing='2' pref-width='64'>
-          <vertical bg='round-rect-panel' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter' size-delta-y='40'>
-            <text text='Users' font-size='4' align='Center' word-wrapping='false' pref-width='60' size-delta-y='5'/>
-            <list id='userFilterList' select-cell='userSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true'/>
-          </vertical>
-          <horizontal bg='round-rect-panel' pad='1' spacing='1' child-align='MiddleCenter' size-delta-y='10'>
-            <button text='Add' on-click='addUser' pref-width='18' pref-height='8' hover-hint='Type a name to add to the list.'/>
-            <button id='userModeButton' text='Blocklist' on-click='toggleUserMode' pref-width='24' pref-height='8' hover-hint='Blocklist: hide these users, and ignore their requests. Allowlist: show only these users (an empty Allowlist shows everyone; requests still work).'/>
-            <button text='Remove' on-click='removeUser' pref-width='18' pref-height='8' hover-hint='Remove the picked name, or all of them.'/>
-          </horizontal>
-        </vertical>
-        <vertical child-control-height='false' spacing='2' pref-width='64'>
-          <vertical bg='round-rect-panel' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter' size-delta-y='40'>
-            <text text='Words' font-size='4' align='Center' word-wrapping='false' pref-width='60' size-delta-y='5'/>
-            <list id='wordFilterList' select-cell='wordSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true'/>
-          </vertical>
-          <horizontal bg='round-rect-panel' pad='1' spacing='1' child-align='MiddleCenter' size-delta-y='10'>
-            <button text='Add' on-click='addWord' pref-width='18' pref-height='8' hover-hint='Type a word or phrase to add to the list. Whole words only, any case.'/>
-            <button id='wordModeButton' text='Blocklist' on-click='toggleWordMode' pref-width='24' pref-height='8' hover-hint='Blocklist: hide messages with these words, and ignore their requests. Allowlist: show only messages with one of them (an empty Allowlist shows everything; requests still work).'/>
-            <button text='Remove' on-click='removeWord' pref-width='18' pref-height='8' hover-hint='Remove the picked word, or all of them.'/>
-          </horizontal>
-        </vertical>
-      </horizontal>
-      <toggle-setting text='Hide Commands' pref-width='64' value='hideCommands' apply-on-change='true' hover-hint='Keep messages that start with ! out of the chat. !bsr and !wrongsong still work.'/>
+    <vertical bg='round-rect-panel' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='-34' anchor-pos-y='-21' size-delta-x='64' size-delta-y='40' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter'>
+      <text text='Users' font-size='4' align='Center' word-wrapping='false' pref-width='60' size-delta-y='5'/>
+      <list id='userFilterList' select-cell='userSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true'/>
     </vertical>
+    <horizontal bg='round-rect-panel' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='-34' anchor-pos-y='-48' size-delta-x='64' size-delta-y='10' pad='1' spacing='1' child-align='MiddleCenter'>
+      <button text='Add' on-click='addUser' pref-width='18' pref-height='8' hover-hint='Type a name to add to the list.'/>
+      <button id='userModeButton' text='Blocklist' on-click='toggleUserMode' pref-width='24' pref-height='8' hover-hint='Blocklist: hide these users, and ignore their requests. Allowlist: show only these users (an empty Allowlist shows everyone; requests still work).'/>
+      <button text='Remove' on-click='removeUser' pref-width='18' pref-height='8' hover-hint='Remove the picked name, or all of them.'/>
+    </horizontal>
+    <vertical bg='round-rect-panel' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='34' anchor-pos-y='-21' size-delta-x='64' size-delta-y='40' pad='2' spacing='1' child-control-height='false' child-align='UpperCenter'>
+      <text text='Words' font-size='4' align='Center' word-wrapping='false' pref-width='60' size-delta-y='5'/>
+      <list id='wordFilterList' select-cell='wordSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true'/>
+    </vertical>
+    <horizontal bg='round-rect-panel' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='34' anchor-pos-y='-48' size-delta-x='64' size-delta-y='10' pad='1' spacing='1' child-align='MiddleCenter'>
+      <button text='Add' on-click='addWord' pref-width='18' pref-height='8' hover-hint='Type a word or phrase to add to the list. Whole words only, any case.'/>
+      <button id='wordModeButton' text='Blocklist' on-click='toggleWordMode' pref-width='24' pref-height='8' hover-hint='Blocklist: hide messages with these words, and ignore their requests. Allowlist: show only messages with one of them (an empty Allowlist shows everything; requests still work).'/>
+      <button text='Remove' on-click='removeWord' pref-width='18' pref-height='8' hover-hint='Remove the picked word, or all of them.'/>
+    </horizontal>
+    <toggle-setting text='Hide Commands' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='0' anchor-pos-y='-58.5' size-delta-x='64' size-delta-y='7' value='hideCommands' apply-on-change='true' hover-hint='Keep messages that start with ! out of the chat. !bsr and !wrongsong still work.'/>
     <modal-keyboard id='filterKeyboard' clear-on-open='true'/>
     <modal id='removeModal' click-off-closes='true' move-to-center='true' size-delta-x='60' size-delta-y='42'>
       <vertical pad='3' spacing='1' child-control-height='false' child-align='MiddleCenter'>
