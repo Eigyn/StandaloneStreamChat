@@ -192,12 +192,13 @@ namespace StandaloneStreamChat::Chat {
             Requests::SongRequestManager::Instance().OnModeration(message);
     }
 
-    void ChatManager::AddSystemMessage(std::string text, bool always) {
+    void ChatManager::AddSystemMessage(std::string text, bool always, std::string color) {
         if (!always && !GetConfig().showSystemMessages)
             return;
         ChatMessage message;
         message.platform = ChatPlatform::System;
         message.text = std::move(text);
+        message.color = std::move(color);
         std::lock_guard lock(_lock);
         PushLocked(std::move(message));
     }

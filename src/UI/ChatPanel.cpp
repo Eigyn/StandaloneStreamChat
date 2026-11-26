@@ -137,7 +137,7 @@ namespace {
     std::string RowText(ChatMessage const& m, bool& waiting) {
         waiting = false;
         if (m.platform == ChatPlatform::System)
-            return "<color=#AAAAAA><i>" + Escape(m.text) + "</i></color>";
+            return "<color=" + (m.color.empty() ? std::string("#AAAAAA") : m.color) + "><i>" + Escape(m.text) + "</i></color>";
 
         auto const& config = GetConfig();
         auto& atlas = UI::EmoteAtlas::Instance();

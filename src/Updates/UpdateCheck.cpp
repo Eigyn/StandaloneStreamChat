@@ -92,8 +92,8 @@ namespace StandaloneStreamChat::Updates {
                     return;
                 }
                 INFO("Update check: {} is available; this is {}", *tag, VERSION);
-                // Shown even with Show System Messages off: it isn't connection noise.
-                Chat::ChatManager::Instance().AddSystemMessage(NoticeText(*tag), true);
+                // Shown even with Show System Messages off: it isn't connection noise. Green to stand out without reading as an error.
+                Chat::ChatManager::Instance().AddSystemMessage(NoticeText(*tag), true, "#7FE08A");
             }
 
             std::atomic<bool> _stopping{false};

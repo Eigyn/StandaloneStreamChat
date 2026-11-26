@@ -31,7 +31,8 @@ namespace StandaloneStreamChat::Chat {
         void RestartPlatform(ChatPlatform platform, bool clearMessages);
 
         /// Posts a system line; `always` shows it even with Show System Messages off.
-        void AddSystemMessage(std::string text, bool always = false);
+        /// `color` ("#RRGGBB", ours only) replaces the usual gray.
+        void AddSystemMessage(std::string text, bool always = false, std::string color = {});
 
         /// Drops shown messages that the filters (just changed) now hide.
         void ApplyFilters();
