@@ -168,6 +168,19 @@ namespace StandaloneStreamChat {
         for (auto toggle : get_gameObject()->GetComponentsInChildren<BSML::ToggleSetting*>(true))
             toggle->ReceiveValue();
     }
+    void SettingsHost::clearPositions() {
+        auto& config = GetConfig();
+        config.playingPositionX = DefaultPositionX;
+        config.playingPositionY = DefaultPositionY;
+        config.playingPositionZ = DefaultPositionZ;
+        config.playingRotationX = DefaultRotationX;
+        config.playingRotationY = DefaultRotationY;
+        config.separatePlayingPosition = false;
+        // Recenter resets the menu pose, saves both poses, and moves the panel.
+        ChatPanel::Recenter();
+        for (auto toggle : get_gameObject()->GetComponentsInChildren<BSML::ToggleSetting*>(true))
+            toggle->ReceiveValue();
+    }
 
     bool SettingsHost::get_enableSongRequests() { return GetConfig().enableSongRequests; }
     void SettingsHost::set_enableSongRequests(bool value) {

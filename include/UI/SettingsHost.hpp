@@ -48,6 +48,7 @@ DECLARE_CLASS_CODEGEN(StandaloneStreamChat, SettingsHost, UnityEngine::MonoBehav
     DECLARE_BSML_PROPERTY(bool, separatePlayingPosition);
     DECLARE_INSTANCE_METHOD(void, captureMenuPosition);
     DECLARE_INSTANCE_METHOD(void, capturePlayingPosition);
+    DECLARE_INSTANCE_METHOD(void, clearPositions);
 
     // Requests
     DECLARE_BSML_PROPERTY(bool, enableSongRequests);

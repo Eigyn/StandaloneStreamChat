@@ -12,6 +12,7 @@ namespace StandaloneStreamChat::UI {
     // BSML's vertical/horizontal tags and buttons add ContentSizeFitters by
     // default; fixed size-delta/pref-size values alone do not stop those fitters
     // from resizing the controls when the tab opens or a button is hovered.
+    // Each filter viewport leaves eight units on its right for BSML's scrollbar.
     // A modifier-container doesn't size its children, so a plain <text> in
     // one needs size-delta-y; otherwise it keeps TMP's default 50-unit height.
     inline constexpr std::string_view SettingsBsml = R"BSML(
@@ -63,7 +64,7 @@ namespace StandaloneStreamChat::UI {
   <tab tags='tabs' tab-name='Filters' size-delta-y='62'>
     <bg bg='round-rect-panel' horizontal-fit='Unconstrained' vertical-fit='Unconstrained' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='-34' anchor-pos-y='-21' size-delta-x='64' size-delta-y='40'>
       <text text='Users' font-size='4' align='Center' word-wrapping='false' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='0' anchor-pos-y='15.5' size-delta-x='60' size-delta-y='5'/>
-      <list id='userFilterList' select-cell='userSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='0' anchor-pos-y='-3' size-delta-x='60' size-delta-y='30'/>
+      <list id='userFilterList' select-cell='userSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='52' show-scrollbar='true' expand-cell='true' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='-4' anchor-pos-y='-3' size-delta-x='52' size-delta-y='30'/>
     </bg>
     <bg bg='round-rect-panel' horizontal-fit='Unconstrained' vertical-fit='Unconstrained' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='-34' anchor-pos-y='-48' size-delta-x='64' size-delta-y='10'>
       <button text='Add' on-click='addUser' horizontal-fit='Unconstrained' vertical-fit='Unconstrained' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='-22' anchor-pos-y='0' size-delta-x='18' size-delta-y='8' hover-hint='Type a name to add to the list.'/>
@@ -72,7 +73,7 @@ namespace StandaloneStreamChat::UI {
     </bg>
     <bg bg='round-rect-panel' horizontal-fit='Unconstrained' vertical-fit='Unconstrained' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='34' anchor-pos-y='-21' size-delta-x='64' size-delta-y='40'>
       <text text='Words' font-size='4' align='Center' word-wrapping='false' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='0' anchor-pos-y='15.5' size-delta-x='60' size-delta-y='5'/>
-      <list id='wordFilterList' select-cell='wordSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='60' expand-cell='true' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='0' anchor-pos-y='-3' size-delta-x='60' size-delta-y='30'/>
+      <list id='wordFilterList' select-cell='wordSelected' list-style='Simple' visible-cells='5' cell-size='6' list-width='52' show-scrollbar='true' expand-cell='true' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='-4' anchor-pos-y='-3' size-delta-x='52' size-delta-y='30'/>
     </bg>
     <bg bg='round-rect-panel' horizontal-fit='Unconstrained' vertical-fit='Unconstrained' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='1' anchor-max-y='1' anchor-pos-x='34' anchor-pos-y='-48' size-delta-x='64' size-delta-y='10'>
       <button text='Add' on-click='addWord' horizontal-fit='Unconstrained' vertical-fit='Unconstrained' anchor-min-x='0.5' anchor-max-x='0.5' anchor-min-y='0.5' anchor-max-y='0.5' anchor-pos-x='-22' anchor-pos-y='0' size-delta-x='18' size-delta-y='8' hover-hint='Type a word or phrase to add to the list. Whole words only, any case.'/>
@@ -135,12 +136,9 @@ namespace StandaloneStreamChat::UI {
     <text text='Menus' font-size='3.2' font-color='#8FD3FF' bold='true' all-uppercase='true' align='BottomLeft' word-wrapping='false' pref-width='64' size-delta-y='5'/>
     <button text='Capture Menu Position' on-click='captureMenuPosition' pref-width='64' pref-height='8' hover-hint='Save where the panel is now as its place in the menus.'/>
     <text text='Songs' font-size='3.2' font-color='#8FD3FF' bold='true' all-uppercase='true' align='BottomLeft' word-wrapping='false' pref-width='64' size-delta-y='5'/>
-    <toggle-setting text='Separate Playing Position' pref-width='64' value='separatePlayingPosition' apply-on-change='true' hover-hint='During songs, move the panel to the captured playing position. Off = it stays at the menu position. Dragging it in the pause menu saves the playing position.'/>
     <button text='Capture Playing Position' on-click='capturePlayingPosition' pref-width='64' pref-height='8' hover-hint='Save where the panel is now as its place during songs, and turn Separate Playing Position on.'/>
-    <text text='Drag the panel, then capture it.' font-size='3' font-color='#AAAAAA' align='Center' word-wrapping='false' pref-width='64' size-delta-y='4'/>
-    <text text='Dragging alone saves nothing here.' font-size='3' font-color='#AAAAAA' align='Center' word-wrapping='false' pref-width='64' size-delta-y='4'/>
-    <text text='Leaving puts it back at its menu spot.' font-size='3' font-color='#AAAAAA' align='Center' word-wrapping='false' pref-width='64' size-delta-y='4'/>
-    <text text='Unlock it (padlock) to drag it.' font-size='3' font-color='#AAAAAA' align='Center' word-wrapping='false' pref-width='64' size-delta-y='4'/>
+    <button text='Clear Positions' on-click='clearPositions' pref-width='64' pref-height='8' hover-hint='Reset the saved menu and song positions, and turn Separate Playing Position off.'/>
+    <toggle-setting text='Separate Playing Position' pref-width='64' value='separatePlayingPosition' apply-on-change='true' hover-hint='During songs, move the panel to the captured playing position. Off = it stays at the menu position. Dragging it in the pause menu saves the playing position.'/>
   </vertical>
 </horizontal>
 )BSML";
